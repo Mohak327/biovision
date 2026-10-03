@@ -6,7 +6,7 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from ..analysis import compare_species, sweep_lambda, sweep_window
+from ..analysis import compare_species, sweep_density, sweep_lambda, sweep_window
 from ..run import RunResult
 from . import figures, tables
 
@@ -27,10 +27,11 @@ class Report:
     results: dict[str, RunResult]
     window_sweeps: dict[str, list[dict]] = field(default_factory=dict)
     lambda_sweeps: dict[str, list[dict]] = field(default_factory=dict)
+    density_sweeps: dict[str, list[dict]] = field(default_factory=dict)
 
 
 def build_report(image, names=None, sweeps: bool = True, **settings) -> Report:
-    """Run every species, and optionally the window and lambda sweeps."""
+    """Run every species, and optionally the window, lambda and density sweeps."""
     results = compare_species(image, names, **settings)
     if not sweeps:
         return Report(results)
@@ -38,6 +39,7 @@ def build_report(image, names=None, sweeps: bool = True, **settings) -> Report:
         results,
         {name: sweep_window(image, name, **settings) for name in results},
         {name: sweep_lambda(image, name, **settings) for name in results},
+        {name: sweep_density(image, name, **settings) for name in results},
     )
 
 
@@ -84,6 +86,10 @@ def write_report(report: Report, out_dir) -> Path:
     if report.lambda_sweeps:
         _save(figures.lambda_sweep(report.lambda_sweeps), out_dir, "lambda_sweep")
         figure_names.append(("lambda_sweep", "Quality against regularization strength."))
+    if report.density_sweeps:
+        _save(figures.density_sweep(report.density_sweeps), out_dir, "density_sweep")
+        figure_names.append(("density_sweep", "Quality against neuron density, with receptor "
+                                              "density scaled from the real eye (1)."))
 
     table_rows = {
         "results": tables.results_table(results),
@@ -95,6 +101,8 @@ def write_report(report: Report, out_dir) -> Path:
         table_rows["window_sweep"] = [r for rows in report.window_sweeps.values() for r in rows]
     if report.lambda_sweeps:
         table_rows["lambda_sweep"] = [r for rows in report.lambda_sweeps.values() for r in rows]
+    if report.density_sweeps:
+        table_rows["density_sweep"] = [r for rows in report.density_sweeps.values() for r in rows]
     for name, rows in table_rows.items():
         _write_csv(out_dir / f"{name}.csv", rows)
     (out_dir / "results.json").write_text(json.dumps(table_rows, indent=2), encoding="utf-8")

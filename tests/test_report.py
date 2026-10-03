@@ -6,7 +6,7 @@ from io import BytesIO
 import pytest
 from matplotlib.figure import Figure
 
-from biovision.analysis import compare_species, sweep_lambda, sweep_window
+from biovision.analysis import compare_species, sweep_density, sweep_lambda, sweep_window
 from biovision.report import export, figures, tables
 from biovision.report.export import Report, build_report, write_report, zip_report
 
@@ -31,6 +31,9 @@ def test_multi_species_figures_draw(results, sample):
     lams = {"fly": sweep_lambda(sample, "fly", lams=(1e-3, 1e-1), **SMALL)}
     assert isinstance(figures.window_sweep(windows), Figure)
     assert isinstance(figures.lambda_sweep(lams), Figure)
+    densities = {"fly": sweep_density(sample, "fly", densities=(1.0, 4.0), **SMALL)}
+    assert isinstance(figures.density_sweep(densities), Figure)
+    assert _titles_inside(figures.density_sweep(densities))
 
 
 def test_tables_have_the_expected_columns(results):
@@ -44,6 +47,7 @@ def test_tables_have_the_expected_columns(results):
     assert by_name["spacing_deg"]["unit"] == "degrees"
     settings = {row["setting"]: row["value"] for row in tables.settings_table(results["fly"])}
     assert settings["species"] == "fly" and settings["size_px"] == "32"
+    assert settings["density"] == "1.0"
     assert "biovision_version" in settings
 
 
@@ -72,11 +76,15 @@ def test_build_report_with_sweeps_adds_sweep_outputs(sample, tmp_path, monkeypat
         image, name, windows_ms=(30.0, 300.0), seeds=(0,), **s))
     monkeypatch.setattr(export, "sweep_lambda", lambda image, name, **s: sweep_lambda(
         image, name, lams=(1e-2,), **s))
+    monkeypatch.setattr(export, "sweep_density", lambda image, name, **s: sweep_density(
+        image, name, densities=(1.0, 4.0), **s))
     report = build_report(sample, ["fly"], **SMALL)
     out = write_report(report, tmp_path)
     names = {path.name for path in out.iterdir()}
     assert {"window_sweep.png", "lambda_sweep.pdf", "window_sweep.csv",
-            "lambda_sweep.csv"} <= names
+            "lambda_sweep.csv", "density_sweep.png", "density_sweep.pdf",
+            "density_sweep.csv"} <= names
+    assert "neuron density" in (out / "report.md").read_text(encoding="utf-8")
 
 
 def test_zip_report_contains_the_written_files(results, tmp_path):

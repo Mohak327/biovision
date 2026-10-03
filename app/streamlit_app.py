@@ -10,7 +10,7 @@ import streamlit as st
 from PIL import Image, UnidentifiedImageError
 
 from biovision import io, species
-from biovision.analysis import compare_species, sweep_lambda, sweep_window
+from biovision.analysis import compare_species, sweep_density, sweep_lambda, sweep_window
 from biovision.report import figures, tables
 from biovision.report.export import Report, write_report, zip_report
 from biovision.run import run
@@ -37,7 +37,8 @@ def cached_sweeps(image: np.ndarray, name: str, settings: tuple):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
         return (sweep_window(image, name, **dict(settings)),
-                sweep_lambda(image, name, **dict(settings)))
+                sweep_lambda(image, name, **dict(settings)),
+                sweep_density(image, name, **dict(settings)))
 
 
 def load_input() -> np.ndarray | None:
@@ -58,6 +59,9 @@ st.caption("Encode an image through a species' visual system, then rebuild it "
 image = load_input()
 name = st.sidebar.selectbox("Species", species.names())
 window_ms = st.sidebar.select_slider("Spike window (ms)", [10, 30, 100, 300, 1000], value=100)
+density = st.sidebar.select_slider(
+    "Receptor density", [0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0], value=1.0,
+    help="Receptors per unit area, relative to the real eye (1 is the real animal).")
 noise = st.sidebar.toggle("Spike noise", value=True)
 fov_deg = st.sidebar.slider("Field of view (degrees)", 10, 120, 60, step=10)
 size_px = st.sidebar.select_slider("Working size (pixels)", [64, 96, 128], value=96)
@@ -70,7 +74,8 @@ if image is None:
 
 settings = tuple(sorted(dict(size_px=size_px, fov_deg=float(fov_deg),
                              window_ms=float(window_ms), noise=noise, lam=lam,
-                             seed=int(seed)).items(), key=lambda item: item[0]))
+                             seed=int(seed), density=float(density)).items(),
+                        key=lambda item: item[0]))
 result = cached_run(image, name, settings)
 if not result.reconstruction.converged:
     st.warning("The solver stopped before fully converging; this is its best estimate.")
@@ -82,10 +87,13 @@ with explore:
     left.image(result.original, caption="Original", width="stretch")
     right.image(result.reconstructed, caption=f"What the {name} code keeps",
                 width="stretch")
-    first, second, third = st.columns(3)
+    first, second, third, fourth = st.columns(4)
     first.metric("PSNR", f"{result.metrics['psnr_db']:.1f} dB")
     second.metric("SSIM", f"{result.metrics['ssim']:.2f}")
-    third.metric("Neurons", f"{int(result.metrics['neurons']):,}")
+    third.metric("Neurons", f"{int(result.metrics['neurons']):,}",
+                 help="Output cells whose spikes are decoded.")
+    fourth.metric("Receptors", f"{int(result.metrics['receptors']):,}",
+                  help="Photoreceptor positions sampling the image.")
     st.write(result.pipeline.description)
 
 with stages:
@@ -112,8 +120,10 @@ with analysis:
     for citation in result.pipeline.citations:
         st.markdown(f"- {citation}")
     st.subheader("Sweeps")
-    if st.button("Run window and lambda sweeps"):
-        window_rows, lambda_rows = cached_sweeps(image, name, settings)
+    if st.button("Run window, lambda and neuron-density sweeps"):
+        window_rows, lambda_rows, density_rows = cached_sweeps(image, name, settings)
+        st.pyplot(figures.density_sweep({name: density_rows}))
+        st.dataframe(density_rows, hide_index=True)
         st.pyplot(figures.window_sweep({name: window_rows}))
         st.dataframe(window_rows, hide_index=True)
         st.pyplot(figures.lambda_sweep({name: lambda_rows}))

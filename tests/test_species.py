@@ -73,3 +73,16 @@ def test_narrow_field_gives_single_type_receptors_in_the_periphery():
     mosaic, _ = build_mosaic(human.PARAMS, VisualField(128, 1.5))
     positions = {tuple(p) for p in np.round(mosaic.positions, 6)}
     assert len(positions) < len(mosaic) < 3 * len(positions)
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_density_is_recorded_and_defaults_to_one(name, field):
+    assert species.get(name)(field).metadata["density"] == 1.0
+    assert species.get(name)(field, density=4.0).metadata["density"] == 4.0
+
+
+def test_density_packs_receptors_closer():
+    field = VisualField(64, 60.0)
+    base = len(species.get("mouse")(field).metadata["mosaic"])
+    sparse = len(species.get("mouse")(field, density=0.25).metadata["mosaic"])
+    assert sparse < base / 3

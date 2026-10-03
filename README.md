@@ -30,9 +30,13 @@ biovision report --species all --out results/
 streamlit run app/streamlit_app.py
 ```
 
+Add `--density 4` to give the eye four times as many receptors per unit area
+(1 is the real animal).
+
 `run` writes one figure and prints the quality numbers. `report` writes every
 figure (PNG and PDF), every table (CSV), `results.json` and `report.md`. Add
-`--no-sweeps` to skip the slow parameter sweeps. With no `--image`, a bundled
+`--no-sweeps` to skip the slow parameter sweeps (spike window, regularization
+and receptor density). With no `--image`, a bundled
 sample is used.
 
 From Python:

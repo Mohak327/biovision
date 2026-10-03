@@ -23,13 +23,15 @@ academic report who needs every figure and number.
 - Plan (how, task by task, with full code): `docs/superpowers/plans/2026-10-03-biovision.md`
 
 The code in the plan was run as a prototype before the plan was written, and
-its 134 tests passed. Implement the plan task by task, in order. Type the code
-as written. If a test fails, look for a typo before changing the design.
+its 134 tests passed. The plan is now fully implemented; treat it as the
+record of how the code was built.
 
 ## Status
 
-Nothing is implemented yet. The repository holds the spec, the plan and this
-file. Start at Task 1 of the plan.
+All 13 plan tasks are implemented on the `implementation` branch. Added after
+the plan: a `density` option (receptors per unit area relative to the real
+eye) on `run()`, the species `build` functions, the CLI (`--density`) and the
+app, with `analysis.sweep_density` and `figures.density_sweep`.
 
 ## Commands
 

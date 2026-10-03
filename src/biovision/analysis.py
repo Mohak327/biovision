@@ -6,6 +6,7 @@ from .run import RunResult, run
 
 DEFAULT_WINDOWS_MS = (10.0, 30.0, 100.0, 300.0, 1000.0)
 DEFAULT_LAMBDAS = (1e-4, 1e-3, 1e-2, 1e-1, 1.0)
+DEFAULT_DENSITIES = (0.25, 1.0, 4.0, 16.0)
 
 
 def compare_species(image, names=None, **settings) -> dict[str, RunResult]:
@@ -39,4 +40,17 @@ def sweep_lambda(image, species_name: str, lams=DEFAULT_LAMBDAS, **settings) -> 
         result = run(image, species_name, lam=lam, **settings)
         rows.append({"species": species_name, "lam": float(lam),
                      "psnr_db": result.metrics["psnr_db"], "ssim": result.metrics["ssim"]})
+    return rows
+
+
+def sweep_density(image, species_name: str, densities=DEFAULT_DENSITIES, **settings) -> list[dict]:
+    """Quality against receptor density, with the receptor and neuron counts."""
+    settings = {k: v for k, v in settings.items() if k != "density"}
+    rows = []
+    for density in densities:
+        result = run(image, species_name, density=density, **settings)
+        metrics = result.metrics
+        rows.append({"species": species_name, "density": float(density),
+                     "receptors": int(metrics["receptors"]), "neurons": int(metrics["neurons"]),
+                     "psnr_db": metrics["psnr_db"], "ssim": metrics["ssim"]})
     return rows

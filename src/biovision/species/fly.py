@@ -42,5 +42,5 @@ PARAMS = EyeParams(
 
 
 @species.register("fly")
-def build(field: VisualField) -> Pipeline:
-    return assemble("fly", field, PARAMS, DESCRIPTION, CITATIONS)
+def build(field: VisualField, density: float = 1.0) -> Pipeline:
+    return assemble("fly", field, PARAMS, DESCRIPTION, CITATIONS, density)

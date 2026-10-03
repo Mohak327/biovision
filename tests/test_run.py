@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from biovision.analysis import compare_species, sweep_lambda, sweep_window
+from biovision.analysis import compare_species, sweep_density, sweep_lambda, sweep_window
 from biovision.core.metrics import psnr, radial_power_spectrum, ssim
 from biovision.run import run
 
@@ -20,8 +20,8 @@ def test_metrics_on_known_images(rng):
 def test_run_returns_images_metrics_and_settings(sample):
     result = run(sample, "mouse", noise=False, **SMALL)
     assert result.original.shape == result.reconstructed.shape == (32, 32, 3)
-    assert set(result.metrics) == {"psnr_db", "ssim", "neurons", "compression_ratio",
-                                   "mean_spikes"}
+    assert set(result.metrics) == {"psnr_db", "ssim", "neurons", "receptors",
+                                   "compression_ratio", "mean_spikes"}
     assert result.settings.species == "mouse" and result.settings.lam == 1e-4
     assert result.runtime_s > 0
 
@@ -91,5 +91,31 @@ def test_run_rejects_bad_settings(sample):
         run(sample, "fly", window_ms=0.0, **SMALL)
     with pytest.raises(ValueError, match="lam must be positive"):
         run(sample, "fly", lam=0.0, **SMALL)
+    with pytest.raises(ValueError, match="density must be positive"):
+        run(sample, "fly", density=0.0, **SMALL)
     with pytest.raises(ValueError, match="size_px must be greater than 1"):
         run(sample, "fly", size_px=1)
+
+
+def test_density_scales_the_receptor_count_and_is_recorded(sample):
+    base = run(sample, "fly", noise=False, **SMALL)
+    dense = run(sample, "fly", noise=False, density=4.0, **SMALL)
+    assert base.settings.density == 1.0 and dense.settings.density == 4.0
+    assert dense.metrics["receptors"] > 3 * base.metrics["receptors"]
+    assert dense.metrics["psnr_db"] > base.metrics["psnr_db"]
+
+
+def test_more_cells_per_pixel_reduce_noise_for_the_human_eye(sample):
+    """Human cones are already finer than a pixel, so density adds spikes, not detail."""
+    base = run(sample, "human", **SMALL)
+    dense = run(sample, "human", density=16.0, **SMALL)
+    assert dense.metrics["receptors"] == base.metrics["receptors"]
+    assert dense.metrics["mean_spikes"] > 10 * base.metrics["mean_spikes"]
+    assert dense.metrics["psnr_db"] > base.metrics["psnr_db"]
+
+
+def test_sweep_density_returns_one_row_per_value(sample):
+    rows = sweep_density(sample, "fly", densities=(1.0, 4.0), noise=False, **SMALL)
+    assert [row["density"] for row in rows] == [1.0, 4.0]
+    assert rows[1]["receptors"] > rows[0]["receptors"]
+    assert set(rows[0]) == {"species", "density", "receptors", "neurons", "psnr_db", "ssim"}

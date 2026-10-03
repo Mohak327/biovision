@@ -19,11 +19,14 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--no-noise", action="store_true", help="exact spike counts")
     parser.add_argument("--lam", type=float, default=None, help="regularization strength")
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--density", type=float, default=1.0,
+                        help="receptor density relative to the real eye")
 
 
 def _settings(args) -> dict:
     return dict(size_px=args.size, fov_deg=args.fov, window_ms=args.window,
-                noise=not args.no_noise, lam=args.lam, seed=args.seed)
+                noise=not args.no_noise, lam=args.lam, seed=args.seed,
+                density=args.density)
 
 
 def _image(args):
@@ -44,7 +47,7 @@ def build_parser() -> argparse.ArgumentParser:
     report_parser.add_argument("--species", default="all", help="a species name, or 'all'")
     report_parser.add_argument("--out", default="results", help="directory to write")
     report_parser.add_argument("--no-sweeps", action="store_true",
-                               help="skip the window and lambda sweeps (much faster)")
+                               help="skip the window, lambda and density sweeps (much faster)")
     _add_common(report_parser)
     return parser
 
@@ -62,7 +65,8 @@ def main(argv=None) -> int:
                 figures.pipeline_panel(result).savefig(args.out, dpi=200)
                 metrics = result.metrics
                 print(f"{args.species}: PSNR {metrics['psnr_db']:.2f} dB, "
-                      f"SSIM {metrics['ssim']:.3f}, {int(metrics['neurons'])} neurons, "
+                      f"SSIM {metrics['ssim']:.3f}, {int(metrics['receptors'])} receptors, "
+                      f"{int(metrics['neurons'])} neurons, "
                       f"{result.reconstruction.iterations} iterations")
                 print(f"figure written to {args.out}")
             else:

@@ -41,3 +41,12 @@ def test_errors_are_reported_without_a_traceback(tmp_path, capsys):
     assert "no image at" in capsys.readouterr().err
     assert main(["run", "--species", "fly", "--window", "0", "--size", "32"]) == 2
     assert "window_ms must be positive" in capsys.readouterr().err
+
+
+def test_run_accepts_a_density(tmp_path, capsys):
+    out = tmp_path / "panel.png"
+    assert main(["run", "--species", "fly", "--size", "32", "--density", "4",
+                 "--out", str(out)]) == 0
+    assert "receptors" in capsys.readouterr().out
+    assert main(["run", "--species", "fly", "--size", "32", "--density", "0"]) == 2
+    assert "density must be positive" in capsys.readouterr().err

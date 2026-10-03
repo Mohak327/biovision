@@ -28,6 +28,7 @@ class Settings:
     lam: float
     chroma_weight: float
     seed: int
+    density: float
 
 
 @dataclass(frozen=True)
@@ -43,27 +44,32 @@ class RunResult:
 
 
 @lru_cache(maxsize=16)
-def build_pipeline(species_name: str, size_px: int, fov_deg: float) -> Pipeline:
+def build_pipeline(species_name: str, size_px: int, fov_deg: float,
+                   density: float = 1.0) -> Pipeline:
     """Build (and cache) a species' pipeline. Building the sparse stages is slow."""
-    return species.get(species_name)(VisualField(size_px, fov_deg))
+    return species.get(species_name)(VisualField(size_px, fov_deg), density)
 
 
 def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
         window_ms: float = 100.0, noise: bool = True, lam: float | None = None,
-        chroma_weight: float = CHROMA_WEIGHT, seed: int = 0) -> RunResult:
+        chroma_weight: float = CHROMA_WEIGHT, seed: int = 0,
+        density: float = 1.0) -> RunResult:
     """Encode `image` through a species' visual system and reconstruct it.
 
     `image` is any (height, width[, channels]) array; it is centre-cropped and
     resized to `size_px`. With `lam=None` the regularization is set from the
-    spike noise.
+    spike noise. `density` multiplies the receptors per unit area (1 is the
+    real animal).
     """
     if window_ms <= 0:
         raise ValueError(f"window_ms must be positive, got {window_ms}")
     if lam is not None and lam <= 0:
         raise ValueError(f"lam must be positive, got {lam}")
+    if density <= 0:
+        raise ValueError(f"density must be positive, got {density}")
     start = time.perf_counter()
     original = io.to_square(image, size_px)
-    pipeline = build_pipeline(species_name, size_px, float(fov_deg))
+    pipeline = build_pipeline(species_name, size_px, float(fov_deg), float(density))
     pipeline = pipeline.replace(PoissonSpikes(window_ms / 1000.0))
     rng = np.random.default_rng(seed) if noise else None
     code = pipeline.encode(original.transpose(2, 0, 1), rng)
@@ -78,10 +84,11 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
         "psnr_db": psnr(original, reconstructed),
         "ssim": ssim(original, reconstructed),
         "neurons": float(pipeline.n_neurons),
+        "receptors": float(len(pipeline.metadata["mosaic"])),
         "compression_ratio": pipeline.n_neurons / original.size,
         "mean_spikes": float(np.mean(code.responses)),
     }
     settings = Settings(species_name, float(fov_deg), size_px, float(window_ms),
-                        noise, float(lam), chroma_weight, seed)
+                        noise, float(lam), chroma_weight, seed, float(density))
     return RunResult(original, reconstructed, pipeline, code, reconstruction,
                      metrics, settings, time.perf_counter() - start)

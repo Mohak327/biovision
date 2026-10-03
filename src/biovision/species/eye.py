@@ -40,7 +40,8 @@ class EyeParams:
     mosaic_seed: int = 0
 
 
-def build_mosaic(params: EyeParams, field: VisualField) -> tuple[Mosaic, float]:
+def build_mosaic(params: EyeParams, field: VisualField,
+                 density: float = 1.0) -> tuple[Mosaic, float]:
     """Receptor positions and types at this image resolution, and cells per position.
 
     Where the eye's receptors are smaller than a pixel, many receptors of every
@@ -49,9 +50,14 @@ def build_mosaic(params: EyeParams, field: VisualField) -> tuple[Mosaic, float]:
 
     The second value is the mean number of real cells that one model position
     stands for (1 when receptors are at least a pixel apart).
+
+    `density` multiplies the number of receptors per unit area, so the spacing
+    shrinks by its square root. 1 is the real animal.
     """
+    if density <= 0:
+        raise ValueError(f"density must be positive, got {density}")
     size = field.size_px
-    true_spacing = field.to_px(params.spacing_deg)
+    true_spacing = field.to_px(params.spacing_deg) / np.sqrt(density)
     spacing = max(true_spacing, MIN_SPACING_PX)
     if params.lattice == "square":
         positions = square_lattice(size, spacing)
@@ -81,11 +87,11 @@ def build_mosaic(params: EyeParams, field: VisualField) -> tuple[Mosaic, float]:
 
 
 def assemble(name: str, field: VisualField, params: EyeParams,
-             description: str, citations: tuple[str, ...]) -> Pipeline:
+             description: str, citations: tuple[str, ...], density: float = 1.0) -> Pipeline:
     """Optics, mosaic, retina, optional cortex, then rate and spikes."""
     size = field.size_px
     n_types = len(params.receptor_names)
-    mosaic, cells_per_position = build_mosaic(params, field)
+    mosaic, cells_per_position = build_mosaic(params, field, density)
     stages = [
         ColorProjection(params.color_matrix, size),
         OpticalBlur(field.to_px(params.blur_sigma_deg), n_types, size),
@@ -109,4 +115,4 @@ def assemble(name: str, field: VisualField, params: EyeParams,
     ]
     return Pipeline(name, field, tuple(stages), description, citations,
                     {"params": params, "mosaic": mosaic,
-                     "cells_per_position": cells_per_position})
+                     "cells_per_position": cells_per_position, "density": density})

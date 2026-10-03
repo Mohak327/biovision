@@ -40,5 +40,5 @@ PARAMS = EyeParams(
 
 
 @species.register("mouse")
-def build(field: VisualField) -> Pipeline:
-    return assemble("mouse", field, PARAMS, DESCRIPTION, CITATIONS)
+def build(field: VisualField, density: float = 1.0) -> Pipeline:
+    return assemble("mouse", field, PARAMS, DESCRIPTION, CITATIONS, density)

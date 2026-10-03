@@ -222,6 +222,24 @@ def lambda_sweep(rows_by_species: dict[str, list[dict]]):
     return figure
 
 
+def density_sweep(rows_by_species: dict[str, list[dict]]):
+    """Quality against receptor density. Points are labelled with receptor counts."""
+    figure, axes = new_figure(1, 2, width=8.0, height=3.2)
+    for index, (name, rows) in enumerate(rows_by_species.items()):
+        densities = [row["density"] for row in rows]
+        for axis, key in zip(axes[0], ("psnr_db", "ssim")):
+            axis.plot(densities, [row[key] for row in rows], marker="o",
+                      color=PALETTE[index], label=name)
+    for axis, label in zip(axes[0], ("PSNR (dB)", "SSIM")):
+        axis.set_xscale("log")
+        axis.axvline(1.0, color="gray", linewidth=0.5, linestyle="--")
+        axis.set_xlabel("receptor density (1 = the real eye)")
+        axis.set_ylabel(label)
+        axis.legend(fontsize=8)
+    figure.suptitle("Reconstruction quality against neuron density", fontsize=11)
+    return figure
+
+
 def species_grid(results: dict[str, RunResult]):
     """The original and every species' reconstruction, side by side."""
     first = next(iter(results.values()))
