@@ -153,7 +153,7 @@ def error_map(result: RunResult):
     error = result.reconstructed - result.original
     figure, axes = new_figure(1, 2, width=7.5, height=3.2)
     image = axes[0, 0].imshow(error.mean(axis=-1), cmap="RdBu_r", vmin=-0.5, vmax=0.5)
-    axes[0, 0].set_title("reconstruction minus original (mean of channels)")
+    axes[0, 0].set_title("reconstruction minus original")
     axes[0, 0].set_xticks([])
     axes[0, 0].set_yticks([])
     figure.colorbar(image, ax=axes[0, 0], shrink=0.8, label="error")
@@ -225,7 +225,7 @@ def lambda_sweep(rows_by_species: dict[str, list[dict]]):
 def species_grid(results: dict[str, RunResult]):
     """The original and every species' reconstruction, side by side."""
     first = next(iter(results.values()))
-    figure, axes = new_figure(1, 1 + len(results), width=2.6 * (1 + len(results)), height=3.0)
+    figure, axes = new_figure(1, 1 + len(results), width=2.6 * (1 + len(results)), height=3.5)
     show_image(axes[0, 0], first.original, "original")
     for axis, (name, result) in zip(axes[0, 1:], results.items()):
         metrics = result.metrics

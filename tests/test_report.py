@@ -84,3 +84,29 @@ def test_zip_report_contains_the_written_files(results, tmp_path):
     with zipfile.ZipFile(BytesIO(zip_report(out))) as archive:
         assert "report.md" in archive.namelist()
         assert "fly_pipeline.png" in archive.namelist()
+
+
+def _titles_inside(figure):
+    """True if every axes title and the figure title lie within the figure."""
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+    canvas = FigureCanvasAgg(figure)
+    canvas.draw()
+    renderer = canvas.get_renderer()
+    texts = [axis.title for axis in figure.axes if axis.get_title()]
+    if figure._suptitle is not None:
+        texts.append(figure._suptitle)
+    box = figure.bbox
+    return all(box.x0 <= extent.x0 and extent.x1 <= box.x1 and extent.y1 <= box.y1
+               for extent in (text.get_window_extent(renderer) for text in texts))
+
+
+@pytest.mark.parametrize("key", list(figures.PER_SPECIES))
+@pytest.mark.parametrize("name", ["fly", "human", "mouse"])
+def test_per_species_figure_titles_are_not_cut_off(results, name, key):
+    assert _titles_inside(figures.PER_SPECIES[key](results[name]))
+
+
+def test_multi_species_figure_titles_are_not_cut_off(results):
+    assert _titles_inside(figures.species_grid(results))
+    assert _titles_inside(figures.convergence(results))
