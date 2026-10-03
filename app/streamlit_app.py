@@ -79,9 +79,9 @@ explore, stages, analysis, compare = st.tabs(["Explore", "Stages", "Analysis", "
 
 with explore:
     left, right = st.columns(2)
-    left.image(result.original, caption="Original", use_container_width=True)
+    left.image(result.original, caption="Original", width="stretch")
     right.image(result.reconstructed, caption=f"What the {name} code keeps",
-                use_container_width=True)
+                width="stretch")
     first, second, third = st.columns(3)
     first.metric("PSNR", f"{result.metrics['psnr_db']:.1f} dB")
     second.metric("SSIM", f"{result.metrics['ssim']:.2f}")
