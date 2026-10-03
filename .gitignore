@@ -10,3 +10,4 @@ results/
 .streamlit/secrets.toml
 .DS_Store
 .superpowers/
+.tmp_pytest/
