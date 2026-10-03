@@ -9,3 +9,4 @@ dist/
 results/
 .streamlit/secrets.toml
 .DS_Store
+.superpowers/

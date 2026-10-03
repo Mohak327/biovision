@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biovision"
+version = "0.1.0"
+description = "Modular biological vision systems with mathematical image reconstruction"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "pillow>=10",
+    "scikit-image>=0.22",
+]
+
+[project.optional-dependencies]
+app = ["streamlit>=1.36"]
+dev = ["pytest>=8", "streamlit>=1.36"]
+
+[project.scripts]
+biovision = "biovision.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"biovision.samples" = ["*.png"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
