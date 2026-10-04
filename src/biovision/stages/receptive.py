@@ -2,30 +2,41 @@
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.sparse import vstack
+from scipy.sparse import csr_matrix, identity, kron
 
-from .mosaic import Mosaic
-from .sparse import SparseStage, normalize_rows, pool
+from ..core.stage import LinearStage
+from .mosaic import Mosaic, all_types_at
+from .pyramid import POOL_SIGMA_RATIO, summarize
+from .sparse import FactoredStage, SparseStage, gaussian, normalize_rows, pool
 
 
-def gaussian(dy: np.ndarray, dx: np.ndarray, sigma: float) -> np.ndarray:
-    return np.exp(-(dy**2 + dx**2) / (2.0 * sigma**2))
+def smooth(out: Mosaic, mosaic: Mosaic, sigma_px: float) -> list[csr_matrix]:
+    """Matrices, applied in order, giving each `out` cell the Gaussian mean of its type.
+
+    One direct matrix where that is affordable. Otherwise the receptors are
+    first pooled onto a coarse layer and the cell pools from that; the two
+    Gaussians' variances add up to `sigma_px` squared.
+    """
+    spacing = sigma_px / np.sqrt(1.0 + POOL_SIGMA_RATIO**2)
+    source, head = summarize(out.positions, mosaic, 3.0 * sigma_px, spacing)
+    width = spacing if head else sigma_px
+    return head + [normalize_rows(pool(out.positions, out.types, source.positions, source.types,
+                                       3.0 * width, lambda dy, dx: gaussian(dy, dx, width)))]
 
 
 def center_surround(mosaic: Mosaic, sigma_center_px: float, sigma_surround_px: float,
-                    surround_weight: float, name: str = "center_surround") -> SparseStage:
+                    surround_weight: float, name: str = "center_surround") -> LinearStage:
     """One cell per receptor: a narrow centre minus a weighted wide surround.
 
     Centre and surround are each normalized to sum to 1 over the receptors
     they pool, so a uniform image gives a response of 1 - surround_weight.
     """
-    pos, types = mosaic.positions, mosaic.types
-    centre = normalize_rows(pool(pos, types, pos, types, 3.0 * sigma_center_px,
-                                 lambda dy, dx: gaussian(dy, dx, sigma_center_px)))
-    surround = normalize_rows(pool(pos, types, pos, types, 3.0 * sigma_surround_px,
-                                   lambda dy, dx: gaussian(dy, dx, sigma_surround_px)))
-    matrix = (centre - surround_weight * surround).tocsr()
-    return SparseStage(name, matrix, (len(mosaic),), (len(mosaic),))
+    shape = (len(mosaic),)
+    centre = smooth(mosaic, mosaic, sigma_center_px)
+    *head, surround = smooth(mosaic, mosaic, sigma_surround_px)
+    if len(centre) == 1 and not head:
+        return SparseStage(name, (centre[0] - surround_weight * surround).tocsr(), shape, shape)
+    return FactoredStage(name, [centre, head + [-surround_weight * surround]], shape, shape)
 
 
 @dataclass(frozen=True)
@@ -45,7 +56,7 @@ class RetinaClass:
 
 
 def opponent_retina(mosaic: Mosaic, classes, sigma_center_px: float, sigma_surround_px: float,
-                    name: str = "center_surround") -> tuple[SparseStage, Mosaic]:
+                    name: str = "center_surround") -> tuple[LinearStage, Mosaic]:
     """Retinal cells that combine receptor types, one of each class at each position.
 
     For each receptor type, a normalized Gaussian pools that type's receptors
@@ -62,30 +73,26 @@ def opponent_retina(mosaic: Mosaic, classes, sigma_center_px: float, sigma_surro
         if len(item.weights) != mosaic.n_types:
             raise ValueError(f"class '{item.name}' needs one weight per receptor type "
                              f"({mosaic.n_types}), got {len(item.weights)}")
+        if not any(item.weights):
+            raise ValueError(f"class '{item.name}' has no non-zero weight")
     # Receptors of several types can share a position; cells sit once at each.
     _, first = np.unique(mosaic.positions, axis=0, return_index=True)
     positions = mosaic.positions[np.sort(first)]
+    pools = all_types_at(positions, mosaic.n_types)  # one pool per receptor type per position
+    centre = smooth(pools, mosaic, sigma_center_px)
+    surround = smooth(pools, mosaic, sigma_surround_px)
 
-    def pools(sigma):
-        """For each receptor type: positions x receptors, rows summing to 1."""
-        return [normalize_rows(pool(positions, np.full(len(positions), kind),
-                                    mosaic.positions, mosaic.types, 3.0 * sigma,
-                                    lambda dy, dx: gaussian(dy, dx, sigma)))
-                for kind in range(mosaic.n_types)]
+    def mix(scale):
+        """Classes x positions from types x positions: each class's weighted sum of pools."""
+        weights = np.array([[scale(item) * w for w in item.weights] for item in classes])
+        return kron(csr_matrix(weights), identity(len(positions)), format="csr")
 
-    centres, surrounds = pools(sigma_center_px), pools(sigma_surround_px)
-    blocks = []
-    for item in classes:
-        block = None
-        for kind, weight in enumerate(item.weights):
-            if weight == 0.0:
-                continue
-            part = weight * (centres[kind] - item.surround_weight * surrounds[kind])
-            block = part if block is None else block + part
-        if block is None:
-            raise ValueError(f"class '{item.name}' has no non-zero weight")
-        blocks.append(item.gain * block)
-    matrix = vstack(blocks).tocsr()
+    mix_centre = mix(lambda item: item.gain)
+    mix_surround = mix(lambda item: -item.gain * item.surround_weight)
     cells = Mosaic(np.tile(positions, (len(classes), 1)),
                    np.repeat(np.arange(len(classes)), len(positions)), len(classes))
-    return SparseStage(name, matrix, (len(mosaic),), (len(cells),)), cells
+    shapes = (len(mosaic),), (len(cells),)
+    if len(centre) == 1 and len(surround) == 1:
+        matrix = mix_centre @ centre[0] + mix_surround @ surround[0]
+        return SparseStage(name, matrix.tocsr(), *shapes), cells
+    return FactoredStage(name, [centre + [mix_centre], surround + [mix_surround]], *shapes), cells

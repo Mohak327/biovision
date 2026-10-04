@@ -4,8 +4,9 @@ import pytest
 from biovision.stages.gabor import gabor_bank, gabor_kernel
 from biovision.stages.mosaic import (Mosaic, all_types_at, assign_types, foveated_lattice,
                                      hex_lattice, mosaic_sampling, square_lattice)
-from biovision.stages.receptive import center_surround
-from biovision.stages.sparse import SparseStage, normalize_rows, pool
+from biovision.stages import pyramid
+from biovision.stages.receptive import RetinaClass, center_surround, opponent_retina
+from biovision.stages.sparse import FactoredStage, SparseStage, normalize_rows, pool
 
 SIZE = 16
 
@@ -16,13 +17,32 @@ def _mosaic(n_types=2):
     return Mosaic(positions, types, n_types)
 
 
+def pooled_stages():
+    """The same stages built through coarse layers, as they are for large images."""
+    dense = all_types_at(square_lattice(2 * SIZE, 1.0), 2)
+    classes = (RetinaClass("sum", (0.5, 0.5), 2.0, 0.7), RetinaClass("difference", (1.0, -1.0), 8.0, 0.5))
+    limit, pyramid.DIRECT_LIMIT = pyramid.DIRECT_LIMIT, 0
+    try:
+        return [
+            center_surround(dense, 1.0, 4.0, 0.7, name="pooled_center_surround"),
+            opponent_retina(dense, classes, 1.0, 4.0, name="pooled_opponent_retina")[0],
+            gabor_bank(dense, 2 * SIZE, [16.0, 4.0], name="pooled_gabor"),
+        ]
+    finally:
+        pyramid.DIRECT_LIMIT = limit
+
+
 def linear_stages():
     mosaic = _mosaic()
     return [
         mosaic_sampling(mosaic, SIZE),
         center_surround(mosaic, 1.0, 3.0, 0.7),
         gabor_bank(mosaic, SIZE, [8.0, 4.0]),
-    ]
+    ] + pooled_stages()
+
+
+def test_the_pooled_stages_really_are_factored():
+    assert all(isinstance(stage, FactoredStage) for stage in pooled_stages())
 
 
 @pytest.mark.parametrize("stage", linear_stages(), ids=lambda s: s.name)

@@ -22,10 +22,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--size", type=int, default=128, help="picture size in pixels")
     parser.add_argument("--species", default="human")
+    parser.add_argument("--no-memory", action="store_true",
+                        help="do not trace memory; tracing makes the times several times longer")
     args = parser.parse_args()
 
     names = io.sample_names()
-    tracemalloc.start()
+    if not args.no_memory:
+        tracemalloc.start()
     rows = []
     for label, noise in (("real, 100 ms", True), ("ideal", False)):
         psnrs, ssims, times = [], [], []
@@ -48,7 +51,8 @@ def main() -> None:
         each = " / ".join(f"{value:.1f}" for value in psnrs)
         print(f"{label:<14}{np.mean(psnrs):>8.2f} dB{np.mean(ssims):>11.3f}"
               f"{np.mean(times):>11.1f}{max(times):>9.1f}   {each}")
-    print(f"peak memory {peak_mb:.0f} MB (the first run includes building the eye)")
+    memory = "not traced" if args.no_memory else f"{peak_mb:.0f} MB, and the times include tracing it"
+    print(f"peak memory {memory} (the slowest run is the first, which builds the eye)")
 
 
 if __name__ == "__main__":
