@@ -46,8 +46,11 @@ def stage_line(progress) -> str:
     return " → ".join(parts)
 
 
-def live_run(image: np.ndarray, name: str, settings: tuple):
-    """Run with the reconstruction drawn as it forms. A repeated run returns at once.
+def live_run(area, image: np.ndarray, name: str, settings: tuple):
+    """Run with the reconstruction drawn in `area` as it forms. A repeated run returns at once.
+
+    `area` is the st.empty() slot that later holds the results, so the live
+    view replaces the previous results instead of appearing above them.
 
     Finished runs are kept in the session, not in st.cache_data: that cache
     records and replays screen updates made inside the function, which fails
@@ -57,7 +60,6 @@ def live_run(image: np.ndarray, name: str, settings: tuple):
     key = (hashlib.sha1(np.ascontiguousarray(image).tobytes()).hexdigest(), name, settings)
     if key in kept:
         return kept[key]
-    area = st.empty()
     with area.container():
         left, right = st.columns(2)
         left.image(pixelated(io.to_square(image, dict(settings)["size_px"])),
@@ -82,7 +84,6 @@ def live_run(image: np.ndarray, name: str, settings: tuple):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
         result = run(image, name, on_progress=show, **dict(settings))
-    area.empty()
     if len(kept) >= MAX_KEPT_RUNS:
         kept.pop(next(iter(kept)))
     kept[key] = result
@@ -140,11 +141,14 @@ settings = tuple(sorted(dict(size_px=size_px, fov_deg=float(fov_deg),
                              window_ms=float(window_ms), noise=noise, lam=lam,
                              seed=int(seed), density=float(density)).items(),
                         key=lambda item: item[0]))
-result = live_run(image, name, settings)
+# One slot holds the live view during a run and the results after it.
+main = st.empty()
+result = live_run(main, image, name, settings)
+results = main.container()
 if not result.reconstruction.converged:
-    st.warning("The solver stopped before fully converging; this is its best estimate.")
+    results.warning("The solver stopped before fully converging; this is its best estimate.")
 
-explore, stages, analysis, compare = st.tabs(["Explore", "Stages", "Analysis", "Compare"])
+explore, stages, analysis, compare = results.tabs(["Explore", "Stages", "Analysis", "Compare"])
 
 with explore:
     left, right = st.columns(2)
