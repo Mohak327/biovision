@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="See what a human, a mouse and a fruit fly keep of a picture, rebuilt from their neurons' spikes." />
     <title>biovision</title>
+    <script>
+      // Apply the stored or system theme before the first paint.
+      try {
+        var stored = localStorage.getItem("biovision.theme");
+        var dark = stored === "dark" || (stored !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.dataset.theme = dark ? "dark" : "light";
+      } catch (error) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

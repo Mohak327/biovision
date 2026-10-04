@@ -9,6 +9,7 @@ import { Retina } from "./components/Retina";
 import { SignalPath, runStatus } from "./components/SignalPath";
 import { SpeciesPicker } from "./components/SpeciesPicker";
 import { DEFAULT_SETTINGS } from "./presets";
+import { useTheme } from "./theme";
 import { useRun } from "./useRun";
 
 const SERVER_HELP = "The Python server is not answering. Start it with: biovision serve";
@@ -20,6 +21,7 @@ export function App() {
   const [source, setSource] = useState<ImageSource | null>(null);
   const [loadProblem, setLoadProblem] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const [theme, toggleTheme] = useTheme();
 
   useEffect(() => {
     Promise.all([fetchSpecies(), fetchSamples()])
@@ -41,7 +43,12 @@ export function App() {
   return (
     <div className="page">
       <header className="masthead">
-        <h1>biovision</h1>
+        <div className="masthead-top">
+          <h1>biovision</h1>
+          <button type="button" className="theme-toggle" onClick={toggleTheme}>
+            {theme === "dark" ? "Light theme" : "Dark theme"}
+          </button>
+        </div>
         <p className="lede">
           A picture goes into an eye as light and leaves as spikes. This rebuilds the
           picture from those spikes alone, so you can see what each eye keeps.

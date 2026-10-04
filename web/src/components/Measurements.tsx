@@ -7,8 +7,8 @@ import {
 } from "../api";
 import { BarChart, LineChart } from "./Charts";
 
-const INK = "#14202b";
-const REBUILT = "#c2410c";
+const INK = "var(--ink)";
+const REBUILT = "var(--rebuilt)";
 const CHANNELS = [
   { label: "red", color: "#d1495b" },
   { label: "green", color: "#2e9e6b" },
