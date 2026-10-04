@@ -94,7 +94,9 @@ positions and classes are in `pipeline.metadata["cells"]`.
    converted with `VisualField`.
 8. Figures use `matplotlib.figure.Figure`, never `pyplot`.
 9. Runtime dependencies are NumPy, SciPy, Matplotlib, Pillow and scikit-image.
-   FastAPI and uvicorn are an optional extra (`server`). Do not add others.
+   FastAPI and python-multipart are also core, because the hosted app installs
+   only core dependencies; uvicorn is an optional extra (`server`) for running
+   locally. Do not add others.
 10. Follow test-driven development: write the failing test, see it fail,
     implement, see it pass, commit.
 11. Keep it simple. Do not add features, options or abstractions the plan does

@@ -38,6 +38,13 @@ drag the divider to compare it with the original. While working on the front
 end, run `biovision serve` and `npm run dev` (in `web/`) side by side and open
 http://localhost:5173.
 
+### Hosting
+
+`vercel.json` deploys the app to Vercel as two services in one project: the
+front end in `web/` and the Python server, which answers everything under
+`/api`. Deploy with `vercel deploy --prod`. A hosted function has less memory
+than a laptop, so the human eye is limited to small picture sizes there.
+
 ### The command line
 
 ```

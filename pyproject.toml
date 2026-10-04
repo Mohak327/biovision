@@ -15,15 +15,19 @@ dependencies = [
     "matplotlib>=3.8",
     "pillow>=10",
     "scikit-image>=0.22",
+    "fastapi>=0.115",
+    "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]
-server = ["fastapi>=0.115", "uvicorn[standard]>=0.30", "python-multipart>=0.0.9"]
-dev = ["pytest>=8", "fastapi>=0.115", "uvicorn[standard]>=0.30", "python-multipart>=0.0.9",
-       "httpx>=0.27"]
+server = ["uvicorn[standard]>=0.30"]  # only to run the server locally
+dev = ["pytest>=8", "uvicorn[standard]>=0.30", "httpx>=0.27"]
 
 [project.scripts]
 biovision = "biovision.cli:main"
+
+[tool.vercel]
+entrypoint = "biovision.server:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]
