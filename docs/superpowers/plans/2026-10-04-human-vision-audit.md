@@ -203,3 +203,38 @@ Record the chosen values and the measurements in `human.py` and `AGENTS.md`.
   information capacity. Z Naturforsch C 36:910-912.
 - Mullen KT (1985). The contrast sensitivity of human colour vision to
   red-green and blue-yellow chromatic gratings. J Physiol 359:381-400.
+
+## Roadmap: every missing piece, by effect on reconstruction accuracy
+
+Ordered by the size of the expected effect on how closely the rebuilt picture
+matches the original, largest first. "Measured" numbers come from prototypes;
+the rest are estimates to be measured before each phase is kept. Some pieces
+make the model more faithful to the eye while lowering accuracy, because the
+real eye loses that information; they are marked.
+
+| Phase | Piece | Effect on accuracy | Basis | Keeps the exact inverse? |
+|---|---|---|---|---|
+| 1 | Cone opponency, gain per pathway, gain per cortex scale | +9 dB with real neurons | Measured | Yes |
+| 2 | FFT-based human path, so the eye runs at 256 and 512 pixels | Removes the largest remaining loss: today the picture is shrunk to 128 pixels before the eye sees it | Memory measured (5.5 GB at 256 today) | Yes |
+| 3 | Fixational eye movements and looking time: several shifted looks combined | About +3 dB per doubling of looks; "stare" already gives +5.5 dB over "look" | Measured for looking time; estimate for shifts | Yes |
+| 4 | Divisive normalization (contrast gain control in retina and cortex) | Estimated +2 to +4 dB on low-contrast pictures | Estimate | No: needs an iterative decoder |
+| 5 | Cone light adaptation (Weber's law) | Estimated +1 to +3 dB in dark regions | Estimate | Yes, as an invertible step at the input |
+| 6 | Real cell types: separate ON and OFF cells, midget and parasol classes, more cortex scales | Estimated +1 to +2 dB | Estimate | Mostly; rectified ON/OFF pairs need care |
+| 7 | Foveation at high resolution: receptive fields growing with eccentricity | Lowers accuracy in the periphery, by design. Faithful. | Needs phase 2 | Yes |
+| 8 | Realistic spikes: refractory period, bursts, correlated neighbours | Small either way: about +1 dB from more regular firing, about -1 dB from correlations | Estimate | The decoder stays linear; the noise model changes |
+| 9 | Real optics: chromatic aberration, pupil size, lens and macular pigment | Lowers accuracy slightly, mostly in blue. Faithful. | Estimate | Yes |
+| 10 | Photon noise at the receptors | Lowers accuracy, strongly only in dim light. Faithful. | Estimate | Yes |
+| 11 | Cortex beyond simple cells: complex cells, depth, V2 and V4 | Lowers accuracy: these cells discard position detail. Faithful. | Estimate | No |
+| 12 | Real spectra in place of RGB | Changes colour accuracy slightly; needs hyperspectral pictures | Estimate | Yes |
+| 13 | The real mosaic: irregular positions, no S cones at the centre, personal L:M ratio | Negligible at these picture sizes | Estimate | Yes |
+| 14 | Rods and night vision | None in daylight | Out of scope until dim light is modelled | Yes |
+
+Phases 4 and 11 break the rule that every stage is linear or exactly
+invertible. They need a decision of their own before they are built: the
+decoder would become iterative, and "rebuilt with linear algebra" would no
+longer be the whole story.
+
+An exact copy of human vision is not reachable: the full circuitry is not
+known, and the brain does not rebuild a picture from its spikes. The aim of
+this roadmap is that each stage is as faithful as published measurements
+allow.
