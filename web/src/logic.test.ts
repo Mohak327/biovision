@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { NdjsonParser, decodeFloat32, decodeUint8 } from "./api";
 import { linePath, niceTicks } from "./chart";
 import {
-  DEFAULT_SETTINGS, DENSITY_PRESETS, RECEPTOR_COLORS, WINDOW_PRESETS, presetLabel, stageLabel,
+  DEFAULT_SETTINGS, DENSITY_PRESETS, RECEPTOR_COLORS, SIZE_PRESETS, WINDOW_PRESETS, presetLabel,
+  stageLabel,
 } from "./presets";
 
 describe("NdjsonParser", () => {
@@ -35,6 +36,12 @@ describe("presets", () => {
     expect(DEFAULT_SETTINGS.neuron_density).toBe(1);
     expect(DEFAULT_SETTINGS.noise).toBe(true);
     expect(DEFAULT_SETTINGS.window_ms).toBe(100);
+  });
+
+  it("offers picture detail as explicit pixel sizes", () => {
+    expect(SIZE_PRESETS.map((preset) => preset.value)).toEqual([96, 128, 256, 512]);
+    expect(SIZE_PRESETS.map((preset) => preset.label)).toEqual(["96 px", "128 px", "256 px", "512 px"]);
+    expect(SIZE_PRESETS.some((preset) => preset.value === DEFAULT_SETTINGS.size_px)).toBe(true);
   });
 
   it("names every preset value, and falls back to the number", () => {
