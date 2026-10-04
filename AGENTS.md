@@ -100,6 +100,60 @@ positions and classes are in `pipeline.metadata["cells"]`.
 11. Keep it simple. Do not add features, options or abstractions the plan does
     not ask for.
 
+## Engineering guidelines
+
+These apply to every change. They combine Andrej Karpathy's agent guidelines
+(github.com/forrestchang/andrej-karpathy-skills), Matt Pocock's agent skills
+(github.com/mattpocock/skills), and the SRP, KISS and DRY principles.
+
+### How to work
+
+1. **Think before coding.** State assumptions. If a request has two readings,
+   say so instead of picking one silently. If a simpler approach exists, say so.
+2. **Simplicity first.** The minimum code that solves the problem. No feature,
+   option or abstraction that was not asked for. If 200 lines could be 50,
+   rewrite it.
+3. **Surgical changes.** Touch only what the task needs. Match the existing
+   style. Remove only the orphans your own change created; mention other dead
+   code, do not delete it.
+4. **Goal-driven.** Turn the task into checks that can be run (a test, a
+   measurement, a screenshot) and loop until they pass.
+5. **Small steps, red then green.** Write the failing test, watch it fail,
+   make it pass, then tidy. "The rate of feedback is your speed limit."
+6. **Use the domain's words.** Receptor, mosaic, retinal class, cortex cell,
+   stage, pipeline, spike window. Code, tests and docs share one vocabulary.
+
+### How to design
+
+- **Deep modules.** A module offers a small interface over a lot of behaviour.
+  `run()` is the model: one call, one result. Do not widen an interface to
+  expose something only one caller needs.
+- **Single responsibility.** One module, one reason to change. Mathematics in
+  `stages/`, biology in `species/`, orchestration in `run.py`, presentation in
+  `report/`, `server.py` and `web/`.
+- **Do not repeat yourself.** Each fact lives in one place: a constant, a
+  parameter on a frozen dataclass, or one function others call.
+- **Classes where there is state with behaviour, or more than one
+  implementation of one interface.** Otherwise a function. The patterns in use,
+  to follow and extend:
+
+  | Pattern | Where | Use it when |
+  |---|---|---|
+  | Strategy | `LinearStage`, `PointwiseStage` and their subclasses | Adding a computation to an eye: a new stage class, or a factory that returns one |
+  | Composite | `Pipeline` holds stages and is used as one operator | Combining stages |
+  | Registry | `core/registry.py`, `species` | Choosing an implementation by name |
+  | Factory | `assemble()`, each species' `build()`, `gabor_bank()`, `opponent_retina()` | Building a configured object from parameters |
+  | Value object | Frozen dataclasses: `VisualField`, `EyeParams`, `RetinaClass`, `Settings`, `RunResult`, `Progress` | Passing configuration or results; never mutate, use `dataclasses.replace` |
+  | Facade | `run()` | One entry point over many parts |
+  | Observer | `on_progress`, `on_iteration` callbacks | Reporting progress without the core knowing who listens |
+
+- **A pattern must earn its place.** Introduce one when it removes real
+  duplication or isolates a responsibility that already exists twice. A
+  pattern added for a single use is complexity, not design.
+- **Scale by composition.** A new eye is parameters plus existing stages. A new
+  computation is one stage. Neither should require editing the decoder, the
+  server or the front end.
+
 ## Decisions that were measured, not guessed
 
 Each of these came out of the prototype. Do not undo one without re-measuring.
