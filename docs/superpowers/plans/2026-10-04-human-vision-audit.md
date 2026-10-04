@@ -251,7 +251,7 @@ real eye loses that information; they are marked.
 | Phase | Piece | Effect on accuracy | Basis | Keeps the exact inverse? |
 |---|---|---|---|---|
 | 1 | Cone opponency, gain per pathway, gain per cortex scale | +9 dB with real neurons | Measured | Yes |
-| 2 | FFT-based human path, so the eye runs at 256 and 512 pixels | Removes the largest remaining loss: today the picture is shrunk to 128 pixels before the eye sees it | Memory measured (5.5 GB at 256 today) | Yes |
+| 2 | Multi-scale pooling, so the eye runs at 256 and 512 pixels: coarse cells pool from cells that already summarize a patch, as in the real retina and cortex, instead of from every receptor | Removes the largest remaining loss: today the picture is shrunk to 128 pixels before the eye sees it | Memory measured (5.5 GB at 256 today) | Yes |
 | 3 | Fixational eye movements and looking time: several shifted looks combined | About +3 dB per doubling of looks; "stare" already gives +5.5 dB over "look" | Measured for looking time; estimate for shifts | Yes |
 | 4 | Divisive normalization (contrast gain control in retina and cortex) | Estimated +2 to +4 dB on low-contrast pictures | Estimate | No: needs an iterative decoder |
 | 5 | Cone light adaptation (Weber's law) | Estimated +1 to +3 dB in dark regions | Estimate | Yes, as an invertible step at the input |
@@ -274,3 +274,27 @@ An exact copy of human vision is not reachable: the full circuitry is not
 known, and the brain does not rebuild a picture from its spikes. The aim of
 this roadmap is that each stage is as faithful as published measurements
 allow.
+
+## How the roadmap is being built
+
+- **Phase 2 is multi-scale pooling, not FFT.** FFT is one way to compute
+  "every cell applies the same filter". The eye saves work differently:
+  coarse cells pool from cells that have already summarized a patch (a
+  pyramid), and sampling is fine at the centre and coarse elsewhere
+  (foveation, phase 7). Both are linear with exact transposes. Phase 7
+  follows phase 2 directly.
+- **One phase at a time**, each by an agent, in this order: 2, 7, 3, 5, 6, 8,
+  9, 10, 13, 12, 14, then 4 and 11 (the two that need an iterative decoder).
+- **Every phase is measured before it is kept**, on one benchmark: the three
+  samples, human eye, 128 pixels, 60 degrees, real neurons at 100 ms and
+  ideal neurons (`scripts/benchmark.py`). Results are appended below.
+- **Defaults.** A feature that lowers the 128-pixel real-neuron PSNR by more
+  than 0.5 dB is built, tested and documented, but left off by default behind
+  a parameter, so the default eye stays the best-reconstructing one.
+- **Guards for every phase:** mouse and fly results unchanged unless the
+  phase is about them; every linear stage keeps an exact transpose; the full
+  test suite passes.
+
+## Phase results
+
+(Each phase appends its measurements here.)
