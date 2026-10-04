@@ -59,6 +59,7 @@ export function useRun(settings: Settings, source: ImageSource | null, delayMs =
         } else if (event.type === "result") {
           setState((s) => ({
             ...s, status: "done", result: event, frame: pngUrl(event.reconstructed),
+            original: pngUrl(event.original), // also covers a server that sent no "original" event
             current: s.stages.length, iteration: event.iterations,
           }));
         } else {
