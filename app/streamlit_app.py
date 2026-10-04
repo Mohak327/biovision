@@ -172,8 +172,7 @@ explore, stages, analysis, compare = results.tabs(["Explore", "Stages", "Analysi
 
 with explore:
     left, right = st.columns(2)
-    full = io.to_square(image, min(image.shape[:2]))
-    left.image(full, caption=f"Original ({full.shape[0]} pixels; the model sees {size_px})",
+    left.image(result.original, caption=f"Original at {size_px} pixels, as the model sees it",
                width="stretch")
     right.image(result.reconstructed, caption=f"What the {name} code keeps",
                 width="stretch")
