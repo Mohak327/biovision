@@ -71,7 +71,9 @@ stages:
 1. `color`: RGB projected onto the species' photoreceptor types.
 2. `optics`: blur by the eye's point-spread function.
 3. `mosaic`: sampling at the receptor positions (foveated, square or hexagonal).
-4. `center_surround`: difference-of-Gaussians receptive fields.
+4. `center_surround`: difference-of-Gaussians receptive fields. In the human
+   eye these cells combine the cone types into brightness, red-green and
+   blue-yellow channels, each with its own gain.
 5. `gabor` (mammals only): V1 simple cells at several scales and orientations.
 6. `rate`: a threshold-linear firing rate around a resting rate.
 7. `spikes`: Poisson spike counts in a time window.

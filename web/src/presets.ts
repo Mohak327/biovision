@@ -83,7 +83,7 @@ const STAGE_TEXT: Record<string, string> = {
   color: "Light is split by what each receptor type can absorb.",
   optics: "The lens and cornea blur the picture slightly before it lands.",
   mosaic: "Receptors sample the picture only where they sit.",
-  center_surround: "Each retinal cell compares its spot with the neighbourhood around it.",
+  center_surround: "Retinal cells compare each spot with its surroundings, and combine receptor types into brightness and colour signals.",
   gabor: "Cortex cells respond to edges at particular angles and sizes.",
   rate: "Each response becomes a firing rate around the cell's resting rate.",
   spikes: "The cell fires a countable number of spikes in the time allowed.",

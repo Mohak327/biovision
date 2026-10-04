@@ -25,11 +25,10 @@ def _as_display(array: np.ndarray) -> np.ndarray:
     return np.clip(array.mean(axis=0), 0.0, 1.0)
 
 
-def _scatter(axis, result: RunResult, values: np.ndarray, title: str):
-    mosaic = _mosaic(result)
+def _scatter(axis, result: RunResult, positions: np.ndarray, values: np.ndarray, title: str):
     size = result.settings.size_px
-    marker = max(1.0, 12000.0 / len(mosaic))
-    axis.scatter(mosaic.positions[:, 1], mosaic.positions[:, 0], c=values,
+    marker = max(1.0, 12000.0 / len(positions))
+    axis.scatter(positions[:, 1], positions[:, 0], c=values,
                  s=marker, cmap="gray", linewidths=0)
     axis.set_xlim(0, size - 1)
     axis.set_ylim(size - 1, 0)
@@ -43,20 +42,24 @@ def _scatter(axis, result: RunResult, values: np.ndarray, title: str):
 def pipeline_panel(result: RunResult):
     """The image after each stage, from the original to the reconstruction."""
     inter = result.code.intermediates
-    n_receptors = len(_mosaic(result))
+    mosaic, cells = _mosaic(result), result.pipeline.metadata["cells"]
     panels = [("original", "image", result.original)]
     for name, output in inter.items():
         if output.ndim == 3:
             panels.append((name, "image", _as_display(output)))
-        elif output.ndim == 1 and len(output) == n_receptors:
-            panels.append((name, "scatter", output))
+        elif name == "mosaic":
+            panels.append((name, "scatter", (mosaic.positions, output)))
+        elif name == "center_surround":
+            # Retinal cells come in classes; draw the first (brightness, or type 0).
+            first = cells.types == 0
+            panels.append((name, "scatter", (cells.positions[first], output[first])))
     panels.append(("reconstruction", "image", result.reconstructed))
     figure, axes = new_figure(1, len(panels), width=2.3 * len(panels), height=2.6)
     for axis, (name, kind, data) in zip(axes[0], panels):
         if kind == "image":
             show_image(axis, data, name.replace("_", " "), cmap="gray", vmin=0, vmax=1)
         else:
-            _scatter(axis, result, data, name.replace("_", " "))
+            _scatter(axis, result, data[0], data[1], name.replace("_", " "))
     figure.suptitle(f"{result.settings.species}: stage by stage", fontsize=11)
     return figure
 

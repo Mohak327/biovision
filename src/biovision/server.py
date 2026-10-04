@@ -127,9 +127,10 @@ def summarize(result: RunResult) -> dict:
     _, rebuilt = radial_power_spectrum(result.reconstructed)
     counts, edges = np.histogram(np.asarray(result.code.responses).ravel(), bins=HISTOGRAM_BINS)
     error = result.reconstructed - result.original
-    retina = result.code.intermediates["center_surround"]
-    low, high = float(retina.min()), float(retina.max())
-    responses = (retina - low) / (high - low) if high > low else np.zeros_like(retina)
+    # One value per receptor, for the retina view: what each receptor caught.
+    caught = result.code.intermediates["mosaic"]
+    low, high = float(caught.min()), float(caught.max())
+    responses = (caught - low) / (high - low) if high > low else np.zeros_like(caught)
     return {
         "type": "result",
         "metrics": result.metrics,
@@ -209,6 +210,8 @@ def _stream_run(image: np.ndarray, settings: Settings):
 
         try:
             options = settings.run_options()
+            # The picture at the size the eye will see it, before anything slow.
+            events.put({"type": "original", "image": _png(io.to_square(image, settings.size_px))})
             pipeline = build_pipeline(settings.species, settings.size_px, settings.fov_deg,
                                       settings.density, settings.neuron_density)
             events.put(mosaic_event(pipeline))

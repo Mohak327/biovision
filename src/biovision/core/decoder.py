@@ -56,7 +56,7 @@ class Decoder:
     """
 
     def __init__(self, pipeline: Pipeline, lam: float, chroma_weight: float = 0.1,
-                 max_iter: int = 500, tol: float = 1e-4):
+                 max_iter: int = 1000, tol: float = 1e-4):
         if lam <= 0:
             raise ValueError(f"lam must be positive, got {lam}")
         if chroma_weight < 0:

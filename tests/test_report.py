@@ -118,3 +118,10 @@ def test_per_species_figure_titles_are_not_cut_off(results, name, key):
 def test_multi_species_figure_titles_are_not_cut_off(results):
     assert _titles_inside(figures.species_grid(results))
     assert _titles_inside(figures.convergence(results))
+
+
+def test_pipeline_panel_draws_the_human_retina_stage(results):
+    """The human retina has cells in classes, not one per receptor."""
+    figure = figures.pipeline_panel(results["human"])
+    titles = [axis.get_title() for axis in figure.axes]
+    assert "center surround" in titles and "mosaic" in titles

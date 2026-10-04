@@ -51,7 +51,8 @@ def test_run_streams_mosaic_stages_frames_then_result():
     assert response.headers["content-type"].startswith("application/x-ndjson")
     stream = events(response)
     kinds = [event["type"] for event in stream]
-    assert kinds[0] == "mosaic" and kinds[-1] == "result"
+    assert kinds[:2] == ["original", "mosaic"] and kinds[-1] == "result"
+    assert decode_png(stream[0]["image"]).shape == (32, 32, 3)  # at the working size
     assert "error" not in kinds
     stage_events = [event for event in stream if event["type"] == "stage"]
     assert stage_events[0]["stages"] == ["color", "optics", "mosaic", "center_surround",
@@ -83,7 +84,7 @@ def test_run_result_carries_everything_the_page_draws():
 
 def test_mosaic_event_gives_positions_types_and_responses_arrive_with_the_result():
     stream = events(client.post("/api/runs", data=form(FLY, sample="astronaut")))
-    mosaic = stream[0]
+    mosaic = stream[1]
     count = mosaic["count"]
     positions = np.frombuffer(base64.b64decode(mosaic["positions"]), dtype="<f4")
     types = np.frombuffer(base64.b64decode(mosaic["types"]), dtype=np.uint8)
@@ -159,3 +160,21 @@ def test_report_returns_a_zip_with_the_report():
 
 def test_the_api_reports_unknown_paths_as_json():
     assert client.get("/api/nope").status_code == 404
+
+
+def test_the_original_event_matches_the_result_and_follows_the_working_size():
+    for size in (32, 48):
+        stream = events(client.post("/api/runs", data=form({"species": "fly", "size_px": size},
+                                                            sample="astronaut")))
+        assert stream[0]["type"] == "original"
+        assert decode_png(stream[0]["image"]).shape == (size, size, 3)
+        assert stream[0]["image"] == stream[-1]["original"]
+
+
+def test_retina_responses_match_the_receptors_for_the_human_eye():
+    """Human retinal cells are not one per receptor; the view is lit by the receptors."""
+    stream = events(client.post("/api/runs", data=form({"species": "human", "size_px": 32},
+                                                        sample="astronaut")))
+    count = stream[1]["count"]
+    responses = np.frombuffer(base64.b64decode(stream[-1]["responses"]), dtype="<f4")
+    assert responses.shape == (count,)

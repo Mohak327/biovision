@@ -76,7 +76,9 @@ image (size, size, 3)
 
 Stage order for every species: `color`, `optics`, `mosaic`, `center_surround`,
 `gabor` (mammals only, and only if a wavelength fits the image), `rate`,
-`spikes`.
+`spikes`. For the human eye the `center_surround` stage makes three classes
+of cell at each position (luminance, red-green, blue-yellow); the cells'
+positions and classes are in `pipeline.metadata["cells"]`.
 
 ## Rules
 
@@ -117,6 +119,14 @@ Each of these came out of the prototype. Do not undo one without re-measuring.
   receptor type, and its firing rate is multiplied by the number of real cells
   it stands for.
 - **Regularization follows the noise.** `lam = 1e-4 + 10 * noise_variance`.
+- **Cone opponency with a gain per channel (human).** Retinal cells combine
+  the cones into luminance, red-green and blue-yellow, with gains 1.5, 8 and
+  3, and the fine cortex scale has gain 2. Sending L and M separately made
+  red versus green a difference of two noisy signals: 20 dB with real
+  neurons against 31 dB now. The gains were chosen under two guards: under
+  0.1% of cells clipped, and no loss with ideal neurons. See
+  `docs/superpowers/plans/2026-10-04-human-vision-audit.md`, which also holds
+  the roadmap of what is still missing.
 - **Own conjugate-gradient loop.** It records the residual at each iteration at
   no cost and does not depend on SciPy's changing `cg` arguments.
 
@@ -126,7 +136,7 @@ At 128 px across 60 degrees, astronaut sample:
 
 | Species | Neurons | PSNR, no noise | PSNR, 100 ms spikes |
 |---|---|---|---|
-| Human | 369,900 | about 35 dB | about 18 dB |
+| Human | 369,900 | about 35 dB | about 28 dB |
 | Mouse | 9,864 | about 15 dB | about 12 dB |
 | Fly | 504 | about 13 dB | about 13 dB |
 

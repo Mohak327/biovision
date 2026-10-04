@@ -2,7 +2,8 @@
 
 2026-10-04. An audit of what the human model computes against what the human
 eye and early cortex compute, the additions worth making, their measured
-gains, and the plan to build them. Nothing here is implemented yet.
+gains, and the plan to build them. Phase 1 is implemented; see "Phase 1
+result" below. The later phases are not.
 
 ## The problem
 
@@ -203,6 +204,41 @@ Record the chosen values and the measurements in `human.py` and `AGENTS.md`.
   information capacity. Z Naturforsch C 36:910-912.
 - Mullen KT (1985). The contrast sensitivity of human colour vision to
   red-green and blue-yellow chromatic gratings. J Physiol 359:381-400.
+
+## Phase 1 result
+
+Built as planned, with these differences from the plan:
+
+- **The colour classes keep a surround** (weight 0.7). The plan gave them
+  none. Measured without it: 28.6 dB real and 32.9 dB ideal at gains 8 / 3,
+  with 0.25% of cells clipped, which fails both guards.
+- **`pool` was not changed.** The mixing retina stage builds one normalized
+  pool per receptor type and adds them with the class weights, so no mixing
+  table was needed.
+- **The solver's step limit rose from 500 to 1000.** With the new gains the
+  ideal-neuron solve on the astronaut needs 671 steps.
+
+Chosen gains: luminance 1.5, red-green 8, blue-yellow 3, fine cortex 2.
+Candidates measured on the three samples at 96 pixels:
+
+| Luminance | Fine cortex | Real neurons | SSIM | Ideal neurons | Worst clipping |
+|---|---|---|---|---|---|
+| 1 | 2 | 29.3 dB | 0.87 | 38.9 dB | 0.006% |
+| **1.5** | **2** | **30.7 dB** | **0.91** | **38.4 dB** | **0.055%** |
+| 2 | 2 | 30.8 dB | 0.92 | 36.1 dB | 0.098% |
+| 2 | 1.5 | 30.4 dB | 0.90 | 39.8 dB | 0.055% |
+| 1.5 | 1.5 | 29.6 dB | 0.88 | 40.7 dB | 0.012% |
+
+Result against the starting point (real neurons, 100 ms):
+
+| | Before | After |
+|---|---|---|
+| 96 pixels, mean of three samples | 20.4 dB, SSIM 0.68 | 30.7 dB, SSIM 0.91 |
+| 96 pixels, astronaut | 20.1 dB | 29.9 dB, SSIM 0.92 |
+| 128 pixels, astronaut (the bug report) | 17.5 to 18.2 dB | 27.9 dB, SSIM 0.85 |
+| Ideal neurons, 96 pixels, mean of three samples | 38.0 dB | 38.4 dB |
+| Ideal neurons, 96 pixels, astronaut | 35.1 dB | 34.9 dB |
+| Mouse and fly | | unchanged, to nine decimal places |
 
 ## Roadmap: every missing piece, by effect on reconstruction accuracy
 

@@ -9,6 +9,7 @@ export type RunState = {
   stages: string[];
   current: number;
   iteration: number;
+  original: string | null; // the picture at the size the eye sees it
   frame: string | null; // the reconstruction so far, as an image URL
   stageImages: Record<string, string>;
   mosaic: MosaicEvent | null;
@@ -17,23 +18,33 @@ export type RunState = {
 };
 
 const IDLE: RunState = {
-  status: "idle", stages: [], current: -1, iteration: 0, frame: null,
+  status: "idle", stages: [], current: -1, iteration: 0, original: null, frame: null,
   stageImages: {}, mosaic: null, result: null, error: null,
 };
 
 export function useRun(settings: Settings, source: ImageSource | null, delayMs = 250): RunState {
   const [state, setState] = useState<RunState>(IDLE);
   const controller = useRef<AbortController | null>(null);
+  const lastSource = useRef<ImageSource | null>(null);
 
   const start = useCallback(async (runSettings: Settings, runSource: ImageSource) => {
     controller.current?.abort();
     const abort = new AbortController();
     controller.current = abort;
-    setState((previous) => ({ ...IDLE, status: "running", result: previous.result }));
+    // Keep the last picture on screen until this run sends its own, unless the
+    // picture itself changed.
+    const samePicture = lastSource.current === runSource;
+    lastSource.current = runSource;
+    setState((previous) => ({
+      ...IDLE, status: "running", result: previous.result,
+      original: samePicture ? previous.original : null,
+    }));
     try {
       for await (const event of streamRun(runSettings, runSource, abort.signal)) {
         if (abort.signal.aborted) return;
-        if (event.type === "mosaic") {
+        if (event.type === "original") {
+          setState((s) => ({ ...s, original: pngUrl(event.image) }));
+        } else if (event.type === "mosaic") {
           setState((s) => ({ ...s, mosaic: event }));
         } else if (event.type === "stage") {
           const name = event.stages[event.current];

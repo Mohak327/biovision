@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  type ImageSource, type Settings, type SpeciesInfo, fetchSamples, fetchSpecies, pngUrl, sampleUrl,
+  type ImageSource, type Settings, type SpeciesInfo, fetchSamples, fetchSpecies, sampleUrl,
 } from "./api";
 import { Controls } from "./components/Controls";
 import { Eyepiece } from "./components/Eyepiece";
@@ -34,15 +34,6 @@ export function App() {
   const run = useRun(settings, source);
   const current = species.find((item) => item.name === settings.species);
   const result = run.status === "done" ? run.result : null;
-
-  // The picture as given, until the run returns it at the size the eye saw.
-  const sourceUrl = useMemo(() => {
-    if (!source) return null;
-    return source.kind === "sample" ? sampleUrl(source.name) : URL.createObjectURL(source.file);
-  }, [source]);
-  useEffect(() => () => {
-    if (sourceUrl?.startsWith("blob:")) URL.revokeObjectURL(sourceUrl);
-  }, [sourceUrl]);
 
   const change = (patch: Partial<Settings>) => setSettings((previous) => ({ ...previous, ...patch }));
   const metrics = result?.metrics;
@@ -111,7 +102,7 @@ export function App() {
       <main className="bench">
         <div className="bench-view">
           <Eyepiece
-            original={result ? pngUrl(result.original) : sourceUrl}
+            original={run.original}
             reconstruction={run.frame}
             speciesName={settings.species}
             busy={run.status === "running"}

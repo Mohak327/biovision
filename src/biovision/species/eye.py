@@ -11,7 +11,7 @@ from ..stages.mosaic import (Mosaic, all_types_at, assign_types, foveated_lattic
                              hex_lattice, mosaic_sampling, square_lattice)
 from ..stages.nonlinearity import LinearRectified
 from ..stages.optics import OpticalBlur
-from ..stages.receptive import center_surround
+from ..stages.receptive import RetinaClass, center_surround, opponent_retina
 from ..stages.spiking import PoissonSpikes
 
 DEFAULT_WINDOW_S = 0.1
@@ -38,6 +38,9 @@ class EyeParams:
     rest_hz: float = 100.0  # firing rate with no signal
     contrast_gain: float = 2.5  # scales responses to span the firing range
     mosaic_seed: int = 0
+    # Retinal cell classes that combine receptor types; empty = one cell per receptor.
+    retina_classes: tuple[RetinaClass, ...] = ()
+    cortex_gains: tuple[float, ...] = ()  # one per cortical frequency; empty = all 1
 
 
 def build_mosaic(params: EyeParams, field: VisualField,
@@ -99,22 +102,32 @@ def assemble(name: str, field: VisualField, params: EyeParams,
     size = field.size_px
     n_types = len(params.receptor_names)
     mosaic, cells_per_position = build_mosaic(params, field, density)
+    sigma_center = max(field.to_px(params.center_sigma_deg), MIN_SIGMA_PX)
+    sigma_surround = max(field.to_px(params.surround_sigma_deg), 2 * MIN_SIGMA_PX)
+    if params.retina_classes:
+        # Cells that mix receptor types must reach receptors of each type, so
+        # their centre is at least half the spacing between positions.
+        spacing = size / np.sqrt(len(np.unique(mosaic.positions, axis=0)))
+        retina, cells = opponent_retina(mosaic, params.retina_classes,
+                                        max(sigma_center, 0.5 * spacing), sigma_surround)
+    else:
+        retina = center_surround(mosaic, sigma_center, sigma_surround, params.surround_weight)
+        cells = mosaic
     stages = [
         ColorProjection(params.color_matrix, size),
         OpticalBlur(field.to_px(params.blur_sigma_deg), n_types, size),
         mosaic_sampling(mosaic, size),
-        center_surround(mosaic,
-                        max(field.to_px(params.center_sigma_deg), MIN_SIGMA_PX),
-                        max(field.to_px(params.surround_sigma_deg), 2 * MIN_SIGMA_PX),
-                        params.surround_weight),
+        retina,
     ]
     if params.cortex_sf_cpd:
         # A wavelength under two pixels is beyond what the image can carry.
-        wavelengths = [w for w in (field.to_px(1.0 / sf) for sf in params.cortex_sf_cpd)
-                       if w >= 2.0 * MIN_SPACING_PX]
-        if wavelengths:
-            stages.append(gabor_bank(mosaic, size, wavelengths,
-                                     min_spacing_px=MIN_SPACING_PX, density=neuron_density))
+        gains = params.cortex_gains or (1.0,) * len(params.cortex_sf_cpd)
+        scales = [(field.to_px(1.0 / sf), gain) for sf, gain in zip(params.cortex_sf_cpd, gains)]
+        scales = [(w, gain) for w, gain in scales if w >= 2.0 * MIN_SPACING_PX]
+        if scales:
+            stages.append(gabor_bank(cells, size, [w for w, _ in scales],
+                                     min_spacing_px=MIN_SPACING_PX, density=neuron_density,
+                                     gains=[gain for _, gain in scales]))
     stages += [
         # One model cell stands for every real cell at its position, so their
         # spikes add: the effective rate scales with the number of cells.
@@ -122,6 +135,6 @@ def assemble(name: str, field: VisualField, params: EyeParams,
         PoissonSpikes(DEFAULT_WINDOW_S),
     ]
     return Pipeline(name, field, tuple(stages), description, citations,
-                    {"params": params, "mosaic": mosaic,
+                    {"params": params, "mosaic": mosaic, "cells": cells,
                      "cells_per_position": cells_per_position, "density": density,
                      "neuron_density": neuron_density})

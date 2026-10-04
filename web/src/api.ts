@@ -29,6 +29,7 @@ export type MosaicEvent = {
   types: string;
   receptors: string[];
 };
+export type OriginalEvent = { type: "original"; image: string };
 export type StageEvent = { type: "stage"; stages: string[]; current: number; image: string | null };
 export type FrameEvent = { type: "frame"; iteration: number; image: string };
 export type ErrorEvent = { type: "error"; message: string };
@@ -55,7 +56,7 @@ export type RunSummary = {
   description: string;
   citations: string[];
 };
-export type RunEvent = MosaicEvent | StageEvent | FrameEvent | ErrorEvent | RunSummary;
+export type RunEvent = OriginalEvent | MosaicEvent | StageEvent | FrameEvent | ErrorEvent | RunSummary;
 export type SweepKind = "window" | "lambda" | "density";
 export type SweepRow = Record<string, number | string>;
 
