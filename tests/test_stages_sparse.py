@@ -20,7 +20,8 @@ def _mosaic(n_types=2):
 def pooled_stages():
     """The same stages built through coarse layers, as they are for large images."""
     dense = all_types_at(square_lattice(2 * SIZE, 1.0), 2)
-    classes = (RetinaClass("sum", (0.5, 0.5), 2.0, 0.7), RetinaClass("difference", (1.0, -1.0), 8.0, 0.5))
+    classes = (RetinaClass("sum", (0.5, 0.5), 2.0, 0.7),
+               RetinaClass("difference", (1.0, -1.0), 8.0, 0.5))
     limit, pyramid.DIRECT_LIMIT = pyramid.DIRECT_LIMIT, 0
     try:
         return [

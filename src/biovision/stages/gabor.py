@@ -45,7 +45,7 @@ def gabor_bank(mosaic: Mosaic, size_px: int, wavelengths_px, n_orientations: int
         raise ValueError(f"density must be positive, got {density}")
     wavelengths = sorted(wavelengths_px, reverse=True)
     thetas = np.pi * np.arange(n_orientations) / n_orientations
-    scales = []  # for each wavelength: the matrices before its cells, and the cells' weights
+    scales = []  # for each wavelength: the matrices before its cells, and its blocks of cells
     for index, wavelength in enumerate(wavelengths):
         sigma = sigma_ratio * wavelength
         spacing = max(sigma, min_spacing_px) / np.sqrt(density)
@@ -64,16 +64,17 @@ def gabor_bank(mosaic: Mosaic, size_px: int, wavelengths_px, n_orientations: int
             for phase in (0.0, np.pi / 2.0):
                 blocks.append(build(
                     lambda dy, dx: gabor_kernel(dy, dx, sigma, wavelength, theta, phase)))
-        scales.append((head, vstack(blocks).tocsr()))
-    n_cells = sum(weights.shape[0] for _, weights in scales)
+        scales.append((head, blocks))
+    n_cells = sum(block.shape[0] for _, blocks in scales for block in blocks)
     shapes = (len(mosaic),), (n_cells,)
     if not any(head for head, _ in scales):
-        return SparseStage(name, vstack([weights for _, weights in scales]).tocsr(), *shapes)
+        matrix = vstack([block for _, blocks in scales for block in blocks]).tocsr()
+        return SparseStage(name, matrix, *shapes)
     # Each scale is a term that fills its own rows of the output and no others.
     terms, start = [], 0
-    for head, weights in scales:
-        rows, columns = weights.shape
-        padded = vstack([csr_matrix((start, columns)), weights,
+    for head, blocks in scales:
+        rows, columns = sum(block.shape[0] for block in blocks), blocks[0].shape[1]
+        padded = vstack([csr_matrix((start, columns)), *blocks,
                          csr_matrix((n_cells - start - rows, columns))]).tocsr()
         terms.append(head + [padded])
         start += rows

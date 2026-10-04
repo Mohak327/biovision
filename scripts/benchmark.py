@@ -4,6 +4,7 @@ Runs one species on every sample across 60 degrees, with real neurons (100 ms
 of spikes, seed 0) and with ideal neurons (no noise), and prints a table.
 
 Run from the repository root: python scripts/benchmark.py --size 128
+Tracing memory slows the run several times over; add --no-memory to time it.
 """
 import argparse
 import time
@@ -51,7 +52,8 @@ def main() -> None:
         each = " / ".join(f"{value:.1f}" for value in psnrs)
         print(f"{label:<14}{np.mean(psnrs):>8.2f} dB{np.mean(ssims):>11.3f}"
               f"{np.mean(times):>11.1f}{max(times):>9.1f}   {each}")
-    memory = "not traced" if args.no_memory else f"{peak_mb:.0f} MB, and the times include tracing it"
+    memory = ("not traced" if args.no_memory
+              else f"{peak_mb:.0f} MB, and the times include tracing it")
     print(f"peak memory {memory} (the slowest run is the first, which builds the eye)")
 
 
