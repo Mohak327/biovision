@@ -35,12 +35,30 @@ def _image(args):
     return io.load_image(args.image) if args.image else io.load_sample(args.sample)
 
 
+def serve(host: str, port: int) -> int:
+    """Run the web server. Needs the `server` extra."""
+    try:
+        import uvicorn
+
+        from .server import app
+    except ImportError:
+        print('error: the server needs extra packages; run: pip install -e ".[server]"',
+              file=sys.stderr)
+        return 2
+    print(f"biovision is running at http://{host}:{port}")
+    uvicorn.run(app, host=host, port=port, log_level="warning")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="biovision", description="Encode an image through a species' visual system "
                                       "and reconstruct it from the neural code.")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("list", help="list the registered species")
+    serve_parser = commands.add_parser("serve", help="start the web app's server")
+    serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser.add_argument("--port", type=int, default=8000)
     run_parser = commands.add_parser("run", help="one species, one figure")
     run_parser.add_argument("--species", required=True)
     run_parser.add_argument("--out", default="biovision_run.png", help="figure to write")
@@ -60,6 +78,8 @@ def main(argv=None) -> int:
         if args.command == "list":
             print("\n".join(species.names()))
             return 0
+        if args.command == "serve":
+            return serve(args.host, args.port)
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             if args.command == "run":

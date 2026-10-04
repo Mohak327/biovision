@@ -1,6 +1,7 @@
 """One pure function per figure: results in, a Matplotlib Figure out."""
 import numpy as np
 
+from ..analysis import sampling_limit_cpd
 from ..core.metrics import radial_power_spectrum
 from ..run import RunResult
 from ..stages.gabor import gabor_kernel
@@ -167,7 +168,7 @@ def error_map(result: RunResult):
 
 def spectrum(result: RunResult):
     """Power against spatial frequency, with the eye's sampling limit marked."""
-    params, settings = _params(result), result.settings
+    settings = result.settings
     frequency, original = radial_power_spectrum(result.original)
     _, rebuilt = radial_power_spectrum(result.reconstructed)
     cpd = frequency / settings.fov_deg
@@ -175,8 +176,7 @@ def spectrum(result: RunResult):
     axis = axes[0, 0]
     axis.loglog(cpd[1:], original[1:], color=PALETTE[6], label="original")
     axis.loglog(cpd[1:], rebuilt[1:], color=PALETTE[1], label="reconstruction")
-    image_limit = settings.size_px / (2.0 * settings.fov_deg)
-    eye_limit = min(1.0 / (2.0 * params.spacing_deg), image_limit)
+    eye_limit = sampling_limit_cpd(result)
     axis.axvline(eye_limit, color=PALETTE[0], linestyle="--",
                  label=f"sampling limit ({eye_limit:.2g} cycles/degree)")
     axis.set_xlabel("spatial frequency (cycles/degree)")

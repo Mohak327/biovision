@@ -54,3 +54,15 @@ def sweep_density(image, species_name: str, densities=DEFAULT_DENSITIES, **setti
                      "receptors": int(metrics["receptors"]), "neurons": int(metrics["neurons"]),
                      "psnr_db": metrics["psnr_db"], "ssim": metrics["ssim"]})
     return rows
+
+
+def sampling_limit_cpd(result: RunResult) -> float:
+    """The highest spatial frequency the eye's receptors can carry, in cycles/degree.
+
+    It is the Nyquist limit of the receptor spacing (at the set density), and
+    never more than the image itself can carry.
+    """
+    settings = result.settings
+    spacing = result.pipeline.metadata["params"].spacing_deg / settings.density ** 0.5
+    image_limit = settings.size_px / (2.0 * settings.fov_deg)
+    return float(min(1.0 / (2.0 * spacing), image_limit))
