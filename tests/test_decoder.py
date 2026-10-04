@@ -112,3 +112,25 @@ def test_all_zero_spikes_decode_to_a_finite_image():
 def test_decoder_rejects_invalid_settings(kwargs):
     with pytest.raises(ValueError):
         Decoder(small_pipeline(), **kwargs)
+
+
+def test_conjugate_gradient_reports_every_iteration(rng):
+    m = rng.standard_normal((12, 12))
+    spd = m @ m.T + 12.0 * np.eye(12)
+    b = rng.standard_normal(12)
+    seen = []
+    x, residuals, _ = conjugate_gradient(lambda v: spd @ v, b, 1e-10, 100,
+                                         on_iteration=lambda k, xk: seen.append((k, xk.copy())))
+    assert [k for k, _ in seen] == list(range(1, len(residuals) + 1))
+    np.testing.assert_array_equal(seen[-1][1], x)
+
+
+def test_decode_reports_clipped_image_estimates(rng):
+    pipeline = small_pipeline()
+    code = pipeline.encode(rng.random((3, SIZE, SIZE)))
+    frames = []
+    result = Decoder(pipeline, 1e-2).decode(code, on_iteration=lambda k, image: frames.append((k, image)))
+    assert len(frames) == result.iterations
+    assert all(image.shape == (3, SIZE, SIZE) for _, image in frames)
+    assert all(image.min() >= 0.0 and image.max() <= 1.0 for _, image in frames)
+    np.testing.assert_array_equal(frames[-1][1], result.image)

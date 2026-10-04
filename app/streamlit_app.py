@@ -2,7 +2,9 @@
 
 Run with: streamlit run app/streamlit_app.py
 """
+import hashlib
 import tempfile
+import time
 import warnings
 
 import numpy as np
@@ -18,11 +20,73 @@ from biovision.run import run
 st.set_page_config(page_title="biovision", layout="wide")
 
 
-@st.cache_data(show_spinner="Encoding and reconstructing...")
-def cached_run(image: np.ndarray, name: str, settings: tuple):
+PIXEL_SCALE = 4  # each image pixel is drawn as a crisp block this many screen pixels wide
+FRAME_INTERVAL_S = 0.05  # at most this often while decoding
+STAGE_PAUSE_S = 0.15  # long enough to read each stage as it is ticked off
+MAX_KEPT_RUNS = 12  # finished runs kept per browser session
+
+
+def pixelated(frame: np.ndarray) -> np.ndarray:
+    """Enlarge an image by whole pixels, so each one shows as a sharp block."""
+    return np.kron(frame, np.ones((PIXEL_SCALE, PIXEL_SCALE, 1)))
+
+
+def stage_line(progress) -> str:
+    """The stages as one line: done ones ticked, the current one in bold."""
+    parts = []
+    for index, stage in enumerate(progress.stages):
+        label = stage.replace("_", " ")
+        if index < progress.current:
+            parts.append(f"✓ {label}")
+        elif index == progress.current:
+            suffix = f" (iteration {progress.iteration})" if progress.iteration else ""
+            parts.append(f"**{label}{suffix}**")
+        else:
+            parts.append(f"<span style='opacity:0.4'>{label}</span>")
+    return " → ".join(parts)
+
+
+def live_run(image: np.ndarray, name: str, settings: tuple):
+    """Run with the reconstruction drawn as it forms. A repeated run returns at once.
+
+    Finished runs are kept in the session, not in st.cache_data: that cache
+    records and replays screen updates made inside the function, which fails
+    for updates to placeholders created outside it.
+    """
+    kept = st.session_state.setdefault("runs", {})
+    key = (hashlib.sha1(np.ascontiguousarray(image).tobytes()).hexdigest(), name, settings)
+    if key in kept:
+        return kept[key]
+    area = st.empty()
+    with area.container():
+        left, right = st.columns(2)
+        left.image(pixelated(io.to_square(image, dict(settings)["size_px"])),
+                   caption="Original", width="stretch")
+        frame_slot = right.empty()
+        status_slot = st.empty()
+    last_frame = [0.0]
+
+    def show(progress):
+        decoding = progress.iteration > 0
+        now = time.monotonic()
+        if decoding and now - last_frame[0] < FRAME_INTERVAL_S:
+            return
+        last_frame[0] = now
+        if progress.image is not None:
+            caption = "Reconstructing..." if decoding else progress.stages[progress.current]
+            frame_slot.image(pixelated(progress.image), caption=caption, width="stretch")
+        status_slot.markdown(stage_line(progress), unsafe_allow_html=True)
+        if not decoding:
+            time.sleep(STAGE_PAUSE_S)
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)
-        return run(image, name, **dict(settings))
+        result = run(image, name, on_progress=show, **dict(settings))
+    area.empty()
+    if len(kept) >= MAX_KEPT_RUNS:
+        kept.pop(next(iter(kept)))
+    kept[key] = result
+    return result
 
 
 @st.cache_data(show_spinner="Running every species...")
@@ -76,7 +140,7 @@ settings = tuple(sorted(dict(size_px=size_px, fov_deg=float(fov_deg),
                              window_ms=float(window_ms), noise=noise, lam=lam,
                              seed=int(seed), density=float(density)).items(),
                         key=lambda item: item[0]))
-result = cached_run(image, name, settings)
+result = live_run(image, name, settings)
 if not result.reconstruction.converged:
     st.warning("The solver stopped before fully converging; this is its best estimate.")
 

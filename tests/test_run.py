@@ -119,3 +119,34 @@ def test_sweep_density_returns_one_row_per_value(sample):
     assert [row["density"] for row in rows] == [1.0, 4.0]
     assert rows[1]["receptors"] > rows[0]["receptors"]
     assert set(rows[0]) == {"species", "density", "receptors", "neurons", "psnr_db", "ssim"}
+
+
+def test_run_reports_each_stage_then_the_decoding_frames(sample):
+    events = []
+    result = run(sample, "mouse", noise=False, on_progress=events.append, **SMALL)
+    stages = ("color", "optics", "mosaic", "center_surround", "gabor", "rate", "spikes",
+              "decoding")
+    assert all(event.stages == stages for event in events)
+    encode = [event for event in events if event.iteration == 0]
+    decode = [event for event in events if event.iteration > 0]
+    assert [event.current for event in encode] == list(range(7))
+    assert all(event.current == 7 for event in decode)
+    assert [event.iteration for event in decode] == list(range(1, len(decode) + 1))
+    assert len(decode) == result.reconstruction.iterations
+    assert all(event.image.shape == (32, 32, 3) for event in decode)
+    np.testing.assert_array_equal(decode[-1].image, result.reconstructed)
+
+
+def test_stage_events_carry_an_image_only_for_image_like_stages(sample):
+    events = []
+    run(sample, "fly", on_progress=events.append, **SMALL)
+    by_stage = {event.stages[event.current]: event for event in events if event.iteration == 0}
+    assert by_stage["color"].image.shape == (32, 32, 3)
+    assert by_stage["optics"].image.shape == (32, 32, 3)
+    assert by_stage["mosaic"].image is None and by_stage["spikes"].image is None
+
+
+def test_progress_reporting_does_not_change_the_result(sample):
+    plain = run(sample, "fly", seed=5, **SMALL)
+    watched = run(sample, "fly", seed=5, on_progress=lambda event: None, **SMALL)
+    np.testing.assert_array_equal(plain.reconstructed, watched.reconstructed)

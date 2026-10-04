@@ -36,3 +36,16 @@ def test_app_density_slider_changes_the_receptor_count():
     slider.set_value(4.0).run()
     assert not app.exception
     assert int(receptors().replace(",", "")) > 3 * int(before.replace(",", ""))
+
+
+def test_app_returns_to_earlier_settings_without_error():
+    """Going back to settings already run must reuse the result, not fail."""
+    app = AppTest.from_file(APP, default_timeout=180)
+    app.run()
+    first = [metric.value for metric in app.metric]
+    selector = next(box for box in app.sidebar.selectbox if box.label == "Species")
+    selector.set_value("mouse").run()
+    selector = next(box for box in app.sidebar.selectbox if box.label == "Species")
+    selector.set_value("fly").run()
+    assert not app.exception
+    assert [metric.value for metric in app.metric] == first

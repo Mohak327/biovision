@@ -32,6 +32,22 @@ class Settings:
 
 
 @dataclass(frozen=True)
+class Progress:
+    """One step of a run, for a live display.
+
+    `stages` names every step in order, ending with "decoding"; `current`
+    indexes the step just reached. `image` is (size, size, 3) in [0, 1]: the
+    stage's output where that is an image, the current estimate while
+    decoding, otherwise None. `iteration` is 0 until decoding starts.
+    """
+
+    stages: tuple[str, ...]
+    current: int
+    image: np.ndarray | None
+    iteration: int
+
+
+@dataclass(frozen=True)
 class RunResult:
     original: np.ndarray  # (size, size, 3)
     reconstructed: np.ndarray  # (size, size, 3)
@@ -50,16 +66,25 @@ def build_pipeline(species_name: str, size_px: int, fov_deg: float,
     return species.get(species_name)(VisualField(size_px, fov_deg), density)
 
 
+def _stage_image(output: np.ndarray) -> np.ndarray | None:
+    """A stage output as a (size, size, 3) image, or None if it is not image-like."""
+    if output.ndim != 3:
+        return None
+    gray = np.clip(output.mean(axis=0), 0.0, 1.0)
+    return np.repeat(gray[:, :, None], 3, axis=2)
+
+
 def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
         window_ms: float = 100.0, noise: bool = True, lam: float | None = None,
         chroma_weight: float = CHROMA_WEIGHT, seed: int = 0,
-        density: float = 1.0) -> RunResult:
+        density: float = 1.0, on_progress=None) -> RunResult:
     """Encode `image` through a species' visual system and reconstruct it.
 
     `image` is any (height, width[, channels]) array; it is centre-cropped and
     resized to `size_px`. With `lam=None` the regularization is set from the
     spike noise. `density` multiplies the receptors per unit area (1 is the
-    real animal).
+    real animal). If given, `on_progress` is called with a `Progress` after
+    each stage and after each decoding iteration.
     """
     if window_ms <= 0:
         raise ValueError(f"window_ms must be positive, got {window_ms}")
@@ -73,12 +98,20 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
     pipeline = pipeline.replace(PoissonSpikes(window_ms / 1000.0))
     rng = np.random.default_rng(seed) if noise else None
     code = pipeline.encode(original.transpose(2, 0, 1), rng)
+    on_iteration = None
+    if on_progress is not None:
+        stages = tuple(code.intermediates) + ("decoding",)
+        for index, output in enumerate(code.intermediates.values()):
+            on_progress(Progress(stages, index, _stage_image(output), 0))
+
+        def on_iteration(k, estimate):
+            on_progress(Progress(stages, len(stages) - 1, estimate.transpose(1, 2, 0), k))
     if lam is None:
         lam = LAM_FLOOR
         if noise:
             lam += NOISE_GAIN * Decoder(pipeline, 1.0).noise_variance(code)
     decoder = Decoder(pipeline, lam, chroma_weight)
-    reconstruction = decoder.decode(code)
+    reconstruction = decoder.decode(code, on_iteration)
     reconstructed = reconstruction.image.transpose(1, 2, 0)
     metrics = {
         "psnr_db": psnr(original, reconstructed),

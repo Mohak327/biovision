@@ -17,10 +17,11 @@ class Reconstruction:
     lam: float
 
 
-def conjugate_gradient(apply, b: np.ndarray, tol: float, max_iter: int):
+def conjugate_gradient(apply, b: np.ndarray, tol: float, max_iter: int, on_iteration=None):
     """Solve apply(x) = b for a symmetric positive-definite operator.
 
-    Returns (x, relative residual after each iteration, converged).
+    Returns (x, relative residual after each iteration, converged). If given,
+    `on_iteration(k, x)` is called after iteration k with the current estimate.
     """
     x = np.zeros_like(b)
     r = b.copy()
@@ -37,6 +38,8 @@ def conjugate_gradient(apply, b: np.ndarray, tol: float, max_iter: int):
         r -= alpha * ap
         rr_new = float(r @ r)
         residuals.append(float(np.sqrt(rr_new)) / b_norm)
+        if on_iteration is not None:
+            on_iteration(len(residuals), x)
         if residuals[-1] <= tol:
             return x, residuals, True
         p = r + (rr_new / rr) * p
@@ -80,7 +83,9 @@ class Decoder:
         slope = float(np.diff(self.linear_drive(np.array([0.0, 1.0])))[0])
         return float(np.mean(code.responses)) * slope**2
 
-    def decode(self, code: NeuralCode) -> Reconstruction:
+    def decode(self, code: NeuralCode, on_iteration=None) -> Reconstruction:
+        """Reconstruct the image. If given, `on_iteration(k, image)` receives the
+        estimate after each solver iteration, as (channels, size, size) in [0, 1]."""
         pipeline = self.pipeline
         a = pipeline.linear_operator()
         shape = pipeline.in_shape
@@ -91,12 +96,20 @@ class Decoder:
             return a.rmatvec(a.matvec(v)) + self.lam * prior.ravel()
 
         b = a.rmatvec(self.linear_drive(code.responses).ravel())
-        x, residuals, converged = conjugate_gradient(normal, b, self.tol, self.max_iter)
+        def as_image(v):
+            return np.clip(v.reshape(shape), 0.0, 1.0)
+
+        report = None
+        if on_iteration is not None:
+            def report(k, v):
+                on_iteration(k, as_image(v))
+
+        x, residuals, converged = conjugate_gradient(normal, b, self.tol, self.max_iter, report)
         if not converged:
             warnings.warn(
                 f"decoder for '{pipeline.name}' did not converge in "
                 f"{self.max_iter} iterations; returning the best estimate",
                 RuntimeWarning, stacklevel=2,
             )
-        image = np.clip(x.reshape(shape), 0.0, 1.0)
-        return Reconstruction(image, len(residuals), converged, tuple(residuals), self.lam)
+        return Reconstruction(as_image(x), len(residuals), converged, tuple(residuals),
+                              self.lam)

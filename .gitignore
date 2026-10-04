@@ -11,3 +11,4 @@ results/
 .DS_Store
 .superpowers/
 .tmp_pytest/
+.tmp_pytest2/
