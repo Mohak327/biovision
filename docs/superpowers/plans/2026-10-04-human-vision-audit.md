@@ -2,8 +2,8 @@
 
 2026-10-04. An audit of what the human model computes against what the human
 eye and early cortex compute, the additions worth making, their measured
-gains, and the plan to build them. Phase 1 is implemented; see "Phase 1
-result" below. The later phases are not.
+gains, and the plan to build them. Phases 1 and 2 are implemented; see "Phase 1
+result" and "Phase results" below. The later phases are not.
 
 ## The problem
 
@@ -298,3 +298,116 @@ allow.
 ## Phase results
 
 (Each phase appends its measurements here.)
+
+### Phase 2: multi-scale pooling (2026-10-04)
+
+**What was built.** A pool is one group of cells reading another through a
+sparse matrix. When a pool has more than five million neighbour pairs
+(`DIRECT_LIMIT` in `stages/pyramid.py`), its cells no longer connect to every
+cell under them. They read a coarse layer: a square grid of pooling cells,
+each the Gaussian-weighted mean (sigma half the grid spacing) of the cells of
+its own type around it.
+
+- **Cortex** (`gabor_bank`): each scale reads a grid 0.7 envelope sigmas
+  apart (3.6 samples per wavelength), so a cell has about 40 inputs at any
+  image size. Direct, the coarse scale has 357 inputs per cell at 128 px,
+  1,430 at 256 and 5,720 at 512.
+- **Retinal surround** (`center_surround`, `opponent_retina`): receptors are
+  pooled onto a grid 0.89 surround sigmas apart and each cell takes a Gaussian
+  mean of the grid; the two Gaussians' variances add up to the surround's.
+  The class mixing (luminance, red-green, blue-yellow) became a factor of its
+  own. The narrow centre stays direct.
+- **`FactoredStage`** (`stages/sparse.py`): a linear stage that is a sum of
+  products of sparse matrices. The factors are kept apart, since multiplying
+  them out would give back the large matrix. The transpose is taken factor by
+  factor and is exact; the generic adjoint tests run on pooled versions of
+  all three stage builders.
+- **`pool`** builds its matrix a slice of output cells at a time, so building
+  no longer needs the neighbour lists of the whole matrix in memory. The
+  matrix is the same, bit for bit.
+- **`scripts/benchmark.py`**: the measurements below.
+
+**The switch.** A pool stays direct if it has at most five million neighbour
+pairs, or if the coarse layer would have more than half as many cells as the
+layer it summarizes (such a grid saves nothing and only blurs). Both tests
+are exact counts, so the choice is deterministic. Consequences: the human eye
+at 128 px and below is built exactly as before; mouse and fly are direct at
+every size, because their receptor count does not grow with the picture
+(checked for the mouse at 64 and 512 px); at
+192 px the retinal surround and the coarse cortex scale are pooled; at 256 px
+and above everything wide is pooled.
+
+**Measurements.** Human eye, 60 degrees, mean of astronaut, cat and coffee;
+real neurons are 100 ms of spikes with seed 0. Peak memory is from
+`tracemalloc`. Times are without memory tracing, which slows a run two to
+four times; the first run also builds the eye. The machine was shared with
+other jobs, and the same run varied by up to 40%.
+
+| Size | | Real PSNR | Real SSIM | Ideal PSNR | Ideal SSIM | Time per run | Peak memory |
+|---|---|---|---|---|---|---|---|
+| 96 px | before | 30.73 dB | 0.907 | 39.75 dB | 0.996 | not timed untraced | 308 MB |
+| 96 px | after | 30.73 dB | 0.907 | 39.73 dB | 0.996 | not timed untraced | 314 MB |
+| 128 px | before | 28.53 dB | 0.830 | 40.53 dB | 0.995 | 11 s to build; runs not timed untraced | 663 MB |
+| 128 px | after | 28.53 dB | 0.830 | 40.53 dB | 0.995 | 13 s to build, 16 s real, 38 s ideal | 673 MB |
+| 256 px | before | not run | | not run | | 206 s | 5.5 GB |
+| 256 px | after | 23.11 dB | 0.600 | 32.72 dB | 0.952 | 30 s real (43 s with the build), 50 s ideal (55 s at worst) | 537 MB |
+| 512 px | before | impossible | | | | | |
+| 512 px | after | 17.16 dB | 0.478 | 16.11 dB | 0.706 | 65 s to build, 266 s real, 410 s ideal (astronaut) | 1,147 MB |
+
+The "before" figures at 256 px (and 96 s, 1.7 GB at 192 px) are the ones
+recorded when this phase was planned; they were not re-run, because 5.5 GB
+does not fit on the machine used. The 128 px times are for the astronaut.
+The 0.02 dB change at 96 px with ideal neurons comes from the retina's class
+mixing being added up in a different order.
+
+Per sample at 128 px, before and after alike: real 27.9 / 28.9 / 28.8 dB,
+ideal 35.1 / 46.3 / 40.2 dB. Mouse and fly are unchanged to nine decimal
+places; the pinned test was not edited.
+
+**Does pooling itself cost accuracy?** Forcing the coarse cortex scale
+through the pooled path at 128 px (astronaut) gives 27.93 dB real and
+35.08 dB ideal against 27.93 and 35.08 direct (27.92 and 35.08 with the
+grid 0.7 sigmas apart). A
+test holds the pooled human eye within 0.5 dB of the direct one at 96 px.
+
+**Deviations from the brief.**
+
+- **Grid 0.7 sigmas apart, not 0.5.** At 0.5 the fine cortex scale at 256 px
+  has a grid as fine as the pixels, stays direct with 30 million connections,
+  and the ideal-neuron runs take 96 s on average (113 s at worst), over the
+  90 s guard. At 0.7 it is pooled (13.5 million) and they take 50 s. The
+  price at 256 px is 0.24 dB with real neurons (23.35 to 23.11) and 1.4 dB
+  with ideal neurons (34.11 to 32.72): a grid 1.5 pixels apart cannot carry
+  the finest detail the direct cells picked up.
+- **Two code paths, switched by size**, in place of one. Pooling everything
+  would have changed mouse and fly; the limit keeps them, and the human eye
+  up to 128 px, exactly as they were.
+- **`gaussian` moved** from `stages/receptive.py` to `stages/sparse.py`, so
+  the pooling module can use it without a circular import.
+- **`--no-memory` on the benchmark**, because tracing memory inflates the
+  times it is meant to report.
+
+**What 256 and 512 px show.** They run, but the picture is worse, not better:
+28.5 dB at 128 px, 23.1 at 256, 17.2 at 512 with real neurons. Three causes,
+none of them the pooling:
+
+1. **The firing rate falls with picture size.** A model cell's rate is
+   multiplied by the cones per pixel (47 at 128 px, 11.7 at 256), and that
+   factor is applied to the cortex cells too, whose number does not change
+   with size. So the whole code carries 4 times fewer spikes at 256 px and 16
+   times fewer at 512. Giving the 256 px eye the rate it has at 128 px raises
+   the astronaut from 22.4 to 25.4 dB (measured on a scratch copy, not
+   built). A cortex cell should stand for a fixed number of real cells per
+   square degree, whatever the pixel size.
+2. **No cortex cell is tuned finer than 0.8 cycles per degree**, a wavelength
+   of 5 pixels at 256 px and 11 at 512. Detail finer than that is not sent.
+   Phase 6 (more cortex scales) and phase 7 (foveation) address this.
+3. **The solver's 1000-step limit.** With ideal neurons at 512 px the
+   astronaut does not converge in 1000 steps (the other two were not
+   checked), and the estimate it stops at is poor (16.1 dB on average,
+   below the real-neuron figure). The system gets harder to solve as the
+   picture grows.
+
+**Not done.** The nine cortex pools of one scale each search for the same
+neighbours; sharing that search would cut the build time (65 s at 512 px)
+several times over. 192 px was built and inspected but not benchmarked.

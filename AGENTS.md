@@ -49,6 +49,7 @@ biovision serve                                   # web app at http://127.0.0.1:
 cd web && npm install && npm run build            # build the front end (served by `serve`)
 cd web && npm run dev                             # front-end dev server on :5173
 cd web && npm test                                # front-end logic tests
+python scripts/benchmark.py --size 128            # PSNR, SSIM, time and peak memory on the samples
 ```
 
 ## Architecture
@@ -79,6 +80,13 @@ Stage order for every species: `color`, `optics`, `mosaic`, `center_surround`,
 `spikes`. For the human eye the `center_surround` stage makes three classes
 of cell at each position (luminance, red-green, blue-yellow); the cells'
 positions and classes are in `pipeline.metadata["cells"]`.
+
+The retina and cortex stages are sparse matrices. Up to 128 px for the human
+eye, and always for mouse and fly, each is one matrix (`SparseStage`). Above
+that a wide cell pools from a coarse layer that has summarized the cells under
+it (`stages/pyramid.py`), and the stage holds the factors and applies them in
+turn (`FactoredStage`: a sum of products of sparse matrices, with the
+transpose taken factor by factor).
 
 ## Rules
 
@@ -183,6 +191,19 @@ Each of these came out of the prototype. Do not undo one without re-measuring.
   0.1% of cells clipped, and no loss with ideal neurons. See
   `docs/superpowers/plans/2026-10-04-human-vision-audit.md`, which also holds
   the roadmap of what is still missing.
+- **Multi-scale pooling above five million connections.** A pool (one group of
+  cells reading another) with more than `DIRECT_LIMIT` = 5 million neighbour
+  pairs reads a coarse layer in place of every cell: a grid of pooling cells,
+  each the Gaussian mean (sigma half the grid spacing) of its own type. Cortex
+  cells read a grid 0.7 envelope sigmas apart (40 inputs per cell at any image
+  size); the retinal surround is pooled to a grid and spread back. A coarse
+  layer is used only if it has at most half the cells it summarizes. Smaller
+  pools are built as before, so every result at 128 px and below, and mouse
+  and fly at any size, is unchanged. Measured: human at 256 px went from
+  5.5 GB and 206 s to 0.54 GB and under 60 s; 512 px, impossible before, takes
+  1.15 GB. A grid 0.5 sigmas apart leaves the fine scale direct at 256 px: it
+  is 1.4 dB better with ideal neurons there but takes 96 s a run. See the
+  phase 2 entry in the audit document.
 - **Own conjugate-gradient loop.** It records the residual at each iteration at
   no cost and does not depend on SciPy's changing `cg` arguments.
 
@@ -198,6 +219,19 @@ At 128 px across 60 degrees, astronaut sample:
 
 PSNR for mouse and fly is dominated by the missing red channel. The human
 decode takes about 10 seconds at 128 px; mouse and fly take about 1 second.
+
+Human eye at larger sizes, mean of the three samples (`scripts/benchmark.py`):
+
+| Size | PSNR, no noise | PSNR, 100 ms spikes | Time per run | Peak memory |
+|---|---|---|---|---|
+| 128 px | 40.5 dB | 28.5 dB | 16 s real, 38 s ideal | 0.67 GB |
+| 256 px | 32.7 dB | 23.1 dB | 30 s real, 50 s ideal | 0.54 GB |
+| 512 px | 16.1 dB (solver stops at 1000 steps) | 17.2 dB | 4 to 7 minutes | 1.15 GB |
+
+The picture gets worse as it gets larger. The eye has the same 369,900 cortex
+cells at every size, none tuned finer than 0.8 cycles per degree, and each
+model cell's firing rate falls with the number of cones in a pixel. Larger
+sizes need the later phases (finer cortex scales, foveation) to pay off.
 
 ## Adding a species
 
