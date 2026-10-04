@@ -23,21 +23,35 @@ pip install -e ".[dev]"
 
 ## Use
 
+### The web app
+
+```
+cd web
+npm install
+npm run build        # once, and again after changing the front end
+cd ..
+biovision serve      # then open http://127.0.0.1:8000
+```
+
+Pick a picture and an eye. The picture is rebuilt live from the eye's spikes;
+drag the divider to compare it with the original. While working on the front
+end, run `biovision serve` and `npm run dev` (in `web/`) side by side and open
+http://localhost:5173.
+
+### The command line
+
 ```
 biovision list
 biovision run --species mouse --image cat.jpg --out mouse.png
 biovision report --species all --out results/
-streamlit run app/streamlit_app.py
 ```
-
-Add `--density 4` to give the eye four times as many receptors per unit area
-(1 is the real animal).
 
 `run` writes one figure and prints the quality numbers. `report` writes every
 figure (PNG and PDF), every table (CSV), `results.json` and `report.md`. Add
 `--no-sweeps` to skip the slow parameter sweeps (spike window, regularization
-and receptor density). With no `--image`, a bundled
-sample is used.
+and receptor density). Add `--density 4` or `--neuron-density 4` to give the
+eye more receptors or cortex cells than the real animal. With no `--image`, a
+bundled sample is used.
 
 From Python:
 
@@ -81,7 +95,8 @@ src/biovision/
   report/    figures, tables, export
   run.py     the single entry point used by the CLI and the app
   analysis.py  species comparison and sweeps
-app/streamlit_app.py
+  server.py  the web app's HTTP server (FastAPI)
+web/         the React front end (Vite, TypeScript, three.js)
 ```
 
 ## Add a species
@@ -108,7 +123,8 @@ def build(field: VisualField) -> Pipeline:
 ## Tests
 
 ```
-pytest
+pytest                # the library and the server
+cd web && npm test    # the front end's logic
 ```
 
 ## Credits

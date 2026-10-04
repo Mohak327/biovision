@@ -28,10 +28,12 @@ record of how the code was built.
 
 ## Status
 
-All 13 plan tasks are implemented on the `implementation` branch. Added after
-the plan: a `density` option (receptors per unit area relative to the real
-eye) on `run()`, the species `build` functions, the CLI (`--density`) and the
-app, with `analysis.sweep_density` and `figures.density_sweep`.
+The library, the command line, the web server and the React front end are
+implemented on the `implementation` branch. The Streamlit app has been
+removed. Added after the original plan: `density` and `neuron_density`
+options, progress reporting from `run()`, `biovision.server` and `web/`.
+The web app's design is recorded in
+`docs/superpowers/specs/2026-10-04-react-frontend-design.md`.
 
 ## Commands
 
@@ -43,7 +45,10 @@ python -m pytest tests/test_decoder.py -q         # one file
 biovision list
 biovision run --species mouse --out results/mouse.png
 biovision report --species all --out results --no-sweeps
-streamlit run app/streamlit_app.py
+biovision serve                                   # web app at http://127.0.0.1:8000
+cd web && npm install && npm run build            # build the front end (served by `serve`)
+cd web && npm run dev                             # front-end dev server on :5173
+cd web && npm test                                # front-end logic tests
 ```
 
 ## Architecture
@@ -65,8 +70,9 @@ image (size, size, 3)
 - The **decoder** undoes the pointwise stages, then solves
   `(A^T A + lam * P) x = A^T y`, where `A` is the composed linear stages and
   `P = -laplacian + chroma_weight * chroma`.
-- `run()` is the single entry point. The CLI, the app and the report layer
-  call it and contain no mathematics.
+- `run()` is the single entry point. The CLI, the server and the report layer
+  call it and contain no mathematics. The React app in `web/` only draws what
+  the server sends.
 
 Stage order for every species: `color`, `optics`, `mosaic`, `center_surround`,
 `gabor` (mammals only, and only if a wavelength fits the image), `rate`,
@@ -86,7 +92,7 @@ Stage order for every species: `color`, `optics`, `mosaic`, `center_surround`,
    converted with `VisualField`.
 8. Figures use `matplotlib.figure.Figure`, never `pyplot`.
 9. Runtime dependencies are NumPy, SciPy, Matplotlib, Pillow and scikit-image.
-   Streamlit is an optional extra. Do not add others.
+   FastAPI and uvicorn are an optional extra (`server`). Do not add others.
 10. Follow test-driven development: write the failing test, see it fail,
     implement, see it pass, commit.
 11. Keep it simple. Do not add features, options or abstractions the plan does
