@@ -49,3 +49,36 @@ def test_app_returns_to_earlier_settings_without_error():
     selector.set_value("fly").run()
     assert not app.exception
     assert [metric.value for metric in app.metric] == first
+
+
+def test_app_neuron_slider_changes_the_neuron_count_for_a_mammal():
+    app = AppTest.from_file(APP, default_timeout=300)
+    app.run()
+    next(box for box in app.sidebar.selectbox if box.label == "Species").set_value("mouse").run()
+    neurons = lambda: int(next(m.value for m in app.metric if m.label == "Neurons").replace(",", ""))
+    before = neurons()
+    slider = next(s for s in app.sidebar.select_slider if s.label == "Neuron density")
+    assert slider.value == 1.0
+    slider.set_value(4.0).run()
+    assert not app.exception
+    assert neurons() > 3 * before
+
+
+def test_app_offers_working_sizes_beyond_128():
+    app = AppTest.from_file(APP, default_timeout=300)
+    app.run()
+    slider = next(s for s in app.sidebar.select_slider if s.label == "Working size (pixels)")
+    assert max(int(option) for option in slider.options) >= 512
+
+
+def test_app_asks_before_running_above_128_pixels():
+    app = AppTest.from_file(APP, default_timeout=300)
+    app.run()
+    slider = next(s for s in app.sidebar.select_slider if s.label == "Working size (pixels)")
+    slider.set_value(192).run()
+    assert not app.exception
+    assert len(app.metric) == 0  # nothing was run
+    assert any("above 128 pixels" in info.value for info in app.info)
+    next(box for box in app.sidebar.checkbox if box.label == "Run above 128 pixels").check().run()
+    assert not app.exception
+    assert [metric.label for metric in app.metric] == ["PSNR", "SSIM", "Neurons", "Receptors"]

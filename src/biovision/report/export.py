@@ -88,7 +88,7 @@ def write_report(report: Report, out_dir) -> Path:
         figure_names.append(("lambda_sweep", "Quality against regularization strength."))
     if report.density_sweeps:
         _save(figures.density_sweep(report.density_sweeps), out_dir, "density_sweep")
-        figure_names.append(("density_sweep", "Quality against neuron density, with receptor "
+        figure_names.append(("density_sweep", "Quality against receptor density, with receptor "
                                               "density scaled from the real eye (1)."))
 
     table_rows = {

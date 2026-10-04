@@ -87,8 +87,15 @@ def build_mosaic(params: EyeParams, field: VisualField,
 
 
 def assemble(name: str, field: VisualField, params: EyeParams,
-             description: str, citations: tuple[str, ...], density: float = 1.0) -> Pipeline:
-    """Optics, mosaic, retina, optional cortex, then rate and spikes."""
+             description: str, citations: tuple[str, ...], density: float = 1.0,
+             neuron_density: float = 1.0) -> Pipeline:
+    """Optics, mosaic, retina, optional cortex, then rate and spikes.
+
+    `density` scales the receptors per unit area and `neuron_density` the
+    cortex cells per unit area. 1 is the real animal for both.
+    """
+    if neuron_density <= 0:
+        raise ValueError(f"neuron_density must be positive, got {neuron_density}")
     size = field.size_px
     n_types = len(params.receptor_names)
     mosaic, cells_per_position = build_mosaic(params, field, density)
@@ -106,7 +113,8 @@ def assemble(name: str, field: VisualField, params: EyeParams,
         wavelengths = [w for w in (field.to_px(1.0 / sf) for sf in params.cortex_sf_cpd)
                        if w >= 2.0 * MIN_SPACING_PX]
         if wavelengths:
-            stages.append(gabor_bank(mosaic, size, wavelengths, min_spacing_px=MIN_SPACING_PX))
+            stages.append(gabor_bank(mosaic, size, wavelengths,
+                                     min_spacing_px=MIN_SPACING_PX, density=neuron_density))
     stages += [
         # One model cell stands for every real cell at its position, so their
         # spikes add: the effective rate scales with the number of cells.
@@ -115,4 +123,5 @@ def assemble(name: str, field: VisualField, params: EyeParams,
     ]
     return Pipeline(name, field, tuple(stages), description, citations,
                     {"params": params, "mosaic": mosaic,
-                     "cells_per_position": cells_per_position, "density": density})
+                     "cells_per_position": cells_per_position, "density": density,
+                     "neuron_density": neuron_density})

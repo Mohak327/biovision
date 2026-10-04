@@ -86,3 +86,18 @@ def test_density_packs_receptors_closer():
     base = len(species.get("mouse")(field).metadata["mosaic"])
     sparse = len(species.get("mouse")(field, density=0.25).metadata["mosaic"])
     assert sparse < base / 3
+
+
+def test_neuron_density_scales_cortex_cells_but_not_receptors():
+    field = VisualField(64, 60.0)
+    base = species.get("mouse")(field)
+    dense = species.get("mouse")(field, neuron_density=4.0)
+    assert dense.metadata["neuron_density"] == 4.0 and base.metadata["neuron_density"] == 1.0
+    assert dense.n_neurons > 3 * base.n_neurons
+    assert len(dense.metadata["mosaic"]) == len(base.metadata["mosaic"])
+
+
+def test_neuron_density_does_nothing_without_a_cortex():
+    field = VisualField(64, 60.0)
+    assert (species.get("fly")(field, neuron_density=4.0).n_neurons
+            == species.get("fly")(field).n_neurons)

@@ -236,7 +236,7 @@ def density_sweep(rows_by_species: dict[str, list[dict]]):
         axis.set_xlabel("receptor density (1 = the real eye)")
         axis.set_ylabel(label)
         axis.legend(fontsize=8)
-    figure.suptitle("Reconstruction quality against neuron density", fontsize=11)
+    figure.suptitle("Reconstruction quality against receptor density", fontsize=11)
     return figure
 
 

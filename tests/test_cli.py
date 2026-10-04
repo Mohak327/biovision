@@ -50,3 +50,11 @@ def test_run_accepts_a_density(tmp_path, capsys):
     assert "receptors" in capsys.readouterr().out
     assert main(["run", "--species", "fly", "--size", "32", "--density", "0"]) == 2
     assert "density must be positive" in capsys.readouterr().err
+
+
+def test_run_accepts_a_neuron_density(tmp_path, capsys):
+    out = tmp_path / "panel.png"
+    assert main(["run", "--species", "mouse", "--size", "32", "--neuron-density", "2",
+                 "--out", str(out)]) == 0
+    assert main(["run", "--species", "mouse", "--size", "32", "--neuron-density", "0"]) == 2
+    assert "neuron_density must be positive" in capsys.readouterr().err

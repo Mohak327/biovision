@@ -93,6 +93,8 @@ def test_run_rejects_bad_settings(sample):
         run(sample, "fly", lam=0.0, **SMALL)
     with pytest.raises(ValueError, match="density must be positive"):
         run(sample, "fly", density=0.0, **SMALL)
+    with pytest.raises(ValueError, match="neuron_density must be positive"):
+        run(sample, "mouse", neuron_density=0.0, **SMALL)
     with pytest.raises(ValueError, match="size_px must be greater than 1"):
         run(sample, "fly", size_px=1)
 
@@ -150,3 +152,12 @@ def test_progress_reporting_does_not_change_the_result(sample):
     plain = run(sample, "fly", seed=5, **SMALL)
     watched = run(sample, "fly", seed=5, on_progress=lambda event: None, **SMALL)
     np.testing.assert_array_equal(plain.reconstructed, watched.reconstructed)
+
+
+def test_neuron_density_adds_neurons_and_is_recorded(sample):
+    base = run(sample, "mouse", size_px=64)
+    dense = run(sample, "mouse", neuron_density=4.0, size_px=64)
+    assert base.settings.neuron_density == 1.0 and dense.settings.neuron_density == 4.0
+    assert dense.metrics["neurons"] > 3 * base.metrics["neurons"]
+    assert dense.metrics["receptors"] == base.metrics["receptors"]
+    assert dense.metrics["psnr_db"] > base.metrics["psnr_db"]  # more spikes to average

@@ -120,3 +120,15 @@ def test_sparse_stage_rejects_a_matrix_of_the_wrong_shape():
     from scipy.sparse import identity
     with pytest.raises(ValueError, match="does not match"):
         SparseStage("bad", identity(4, format="csr"), (5,), (4,))
+
+
+def test_gabor_bank_density_multiplies_the_cell_count(rng):
+    mosaic = _mosaic()
+    base = gabor_bank(mosaic, SIZE, [8.0])
+    dense = gabor_bank(mosaic, SIZE, [8.0], density=4.0)
+    assert 3 * base.out_shape[0] < dense.out_shape[0] < 6 * base.out_shape[0]
+    x = rng.standard_normal(dense.in_shape)
+    y = rng.standard_normal(dense.out_shape)
+    assert np.vdot(dense.forward(x), y) == pytest.approx(np.vdot(x, dense.adjoint(y)), rel=1e-10)
+    with pytest.raises(ValueError, match="density must be positive"):
+        gabor_bank(mosaic, SIZE, [8.0], density=0.0)

@@ -84,7 +84,7 @@ def test_build_report_with_sweeps_adds_sweep_outputs(sample, tmp_path, monkeypat
     assert {"window_sweep.png", "lambda_sweep.pdf", "window_sweep.csv",
             "lambda_sweep.csv", "density_sweep.png", "density_sweep.pdf",
             "density_sweep.csv"} <= names
-    assert "neuron density" in (out / "report.md").read_text(encoding="utf-8")
+    assert "receptor density" in (out / "report.md").read_text(encoding="utf-8")
 
 
 def test_zip_report_contains_the_written_files(results, tmp_path):

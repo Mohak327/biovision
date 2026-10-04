@@ -21,12 +21,14 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--density", type=float, default=1.0,
                         help="receptor density relative to the real eye")
+    parser.add_argument("--neuron-density", type=float, default=1.0,
+                        help="cortex cell density relative to the real animal")
 
 
 def _settings(args) -> dict:
     return dict(size_px=args.size, fov_deg=args.fov, window_ms=args.window,
                 noise=not args.no_noise, lam=args.lam, seed=args.seed,
-                density=args.density)
+                density=args.density, neuron_density=args.neuron_density)
 
 
 def _image(args):

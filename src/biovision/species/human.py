@@ -44,5 +44,6 @@ PARAMS = EyeParams(
 
 
 @species.register("human")
-def build(field: VisualField, density: float = 1.0) -> Pipeline:
-    return assemble("human", field, PARAMS, DESCRIPTION, CITATIONS, density)
+def build(field: VisualField, density: float = 1.0,
+          neuron_density: float = 1.0) -> Pipeline:
+    return assemble("human", field, PARAMS, DESCRIPTION, CITATIONS, density, neuron_density)

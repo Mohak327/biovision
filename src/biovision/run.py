@@ -29,6 +29,7 @@ class Settings:
     chroma_weight: float
     seed: int
     density: float
+    neuron_density: float
 
 
 @dataclass(frozen=True)
@@ -61,9 +62,9 @@ class RunResult:
 
 @lru_cache(maxsize=16)
 def build_pipeline(species_name: str, size_px: int, fov_deg: float,
-                   density: float = 1.0) -> Pipeline:
+                   density: float = 1.0, neuron_density: float = 1.0) -> Pipeline:
     """Build (and cache) a species' pipeline. Building the sparse stages is slow."""
-    return species.get(species_name)(VisualField(size_px, fov_deg), density)
+    return species.get(species_name)(VisualField(size_px, fov_deg), density, neuron_density)
 
 
 def _stage_image(output: np.ndarray) -> np.ndarray | None:
@@ -77,13 +78,14 @@ def _stage_image(output: np.ndarray) -> np.ndarray | None:
 def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
         window_ms: float = 100.0, noise: bool = True, lam: float | None = None,
         chroma_weight: float = CHROMA_WEIGHT, seed: int = 0,
-        density: float = 1.0, on_progress=None) -> RunResult:
+        density: float = 1.0, neuron_density: float = 1.0,
+        on_progress=None) -> RunResult:
     """Encode `image` through a species' visual system and reconstruct it.
 
     `image` is any (height, width[, channels]) array; it is centre-cropped and
     resized to `size_px`. With `lam=None` the regularization is set from the
-    spike noise. `density` multiplies the receptors per unit area (1 is the
-    real animal). If given, `on_progress` is called with a `Progress` after
+    spike noise. `density` multiplies the receptors per unit area and
+    `neuron_density` the cortex cells per unit area (1 is the real animal). If given, `on_progress` is called with a `Progress` after
     each stage and after each decoding iteration.
     """
     if window_ms <= 0:
@@ -92,9 +94,12 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
         raise ValueError(f"lam must be positive, got {lam}")
     if density <= 0:
         raise ValueError(f"density must be positive, got {density}")
+    if neuron_density <= 0:
+        raise ValueError(f"neuron_density must be positive, got {neuron_density}")
     start = time.perf_counter()
     original = io.to_square(image, size_px)
-    pipeline = build_pipeline(species_name, size_px, float(fov_deg), float(density))
+    pipeline = build_pipeline(species_name, size_px, float(fov_deg), float(density),
+                              float(neuron_density))
     pipeline = pipeline.replace(PoissonSpikes(window_ms / 1000.0))
     rng = np.random.default_rng(seed) if noise else None
     code = pipeline.encode(original.transpose(2, 0, 1), rng)
@@ -122,6 +127,7 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
         "mean_spikes": float(np.mean(code.responses)),
     }
     settings = Settings(species_name, float(fov_deg), size_px, float(window_ms),
-                        noise, float(lam), chroma_weight, seed, float(density))
+                        noise, float(lam), chroma_weight, seed, float(density),
+                        float(neuron_density))
     return RunResult(original, reconstructed, pipeline, code, reconstruction,
                      metrics, settings, time.perf_counter() - start)

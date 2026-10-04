@@ -20,7 +20,9 @@ from biovision.run import run
 st.set_page_config(page_title="biovision", layout="wide")
 
 
-PIXEL_SCALE = 4  # each image pixel is drawn as a crisp block this many screen pixels wide
+LIVE_VIEW_PX = 384  # the live view is enlarged by whole pixels to about this width
+WORKING_SIZES = [64, 96, 128, 192, 256, 384, 512]
+LIGHT_SIZE_PX = 128  # above this, the human model needs gigabytes of memory
 FRAME_INTERVAL_S = 0.05  # at most this often while decoding
 STAGE_PAUSE_S = 0.15  # long enough to read each stage as it is ticked off
 MAX_KEPT_RUNS = 12  # finished runs kept per browser session
@@ -28,7 +30,8 @@ MAX_KEPT_RUNS = 12  # finished runs kept per browser session
 
 def pixelated(frame: np.ndarray) -> np.ndarray:
     """Enlarge an image by whole pixels, so each one shows as a sharp block."""
-    return np.kron(frame, np.ones((PIXEL_SCALE, PIXEL_SCALE, 1)))
+    scale = max(1, LIVE_VIEW_PX // frame.shape[0])
+    return np.kron(frame, np.ones((scale, scale, 1)))
 
 
 def stage_line(progress) -> str:
@@ -127,9 +130,16 @@ window_ms = st.sidebar.select_slider("Spike window (ms)", [10, 30, 100, 300, 100
 density = st.sidebar.select_slider(
     "Receptor density", [0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0], value=1.0,
     help="Receptors per unit area, relative to the real eye (1 is the real animal).")
+neuron_density = st.sidebar.select_slider(
+    "Neuron density", [0.25, 0.5, 1.0, 2.0, 4.0], value=1.0,
+    help="Cortex cells per unit area, relative to the real animal. The fly has no "
+         "cortex stage: its neurons follow the receptor density instead.")
 noise = st.sidebar.toggle("Spike noise", value=True)
 fov_deg = st.sidebar.slider("Field of view (degrees)", 10, 120, 60, step=10)
-size_px = st.sidebar.select_slider("Working size (pixels)", [64, 96, 128], value=96)
+size_px = st.sidebar.select_slider(
+    "Working size (pixels)", WORKING_SIZES, value=128,
+    help="The image is resized to this many pixels across. Time and memory grow with "
+         "its square; the human model is the heaviest.")
 auto_lam = st.sidebar.toggle("Set regularization from the noise", value=True)
 lam = None if auto_lam else 10.0 ** st.sidebar.slider("log10(lambda)", -5.0, 1.0, -3.0, 0.5)
 seed = st.sidebar.number_input("Noise seed", min_value=0, value=0, step=1)
@@ -137,9 +147,19 @@ seed = st.sidebar.number_input("Noise seed", min_value=0, value=0, step=1)
 if image is None:
     st.stop()
 
+if size_px > LIGHT_SIZE_PX and not st.sidebar.checkbox(
+        f"Run above {LIGHT_SIZE_PX} pixels", value=False,
+        help="Fly and mouse take up to a minute at 512 pixels. The human model needs "
+             "about 2 GB of memory at 192 pixels and 5 GB at 256, and takes minutes."):
+    st.info(f"Working sizes above {LIGHT_SIZE_PX} pixels are slow, and for the human model "
+            f"need several gigabytes of memory. Tick \"Run above {LIGHT_SIZE_PX} pixels\" "
+            "in the sidebar to go ahead.")
+    st.stop()
+
 settings = tuple(sorted(dict(size_px=size_px, fov_deg=float(fov_deg),
                              window_ms=float(window_ms), noise=noise, lam=lam,
-                             seed=int(seed), density=float(density)).items(),
+                             seed=int(seed), density=float(density),
+                             neuron_density=float(neuron_density)).items(),
                         key=lambda item: item[0]))
 # One slot holds the live view during a run and the results after it.
 main = st.empty()
@@ -152,7 +172,9 @@ explore, stages, analysis, compare = results.tabs(["Explore", "Stages", "Analysi
 
 with explore:
     left, right = st.columns(2)
-    left.image(result.original, caption="Original", width="stretch")
+    full = io.to_square(image, min(image.shape[:2]))
+    left.image(full, caption=f"Original ({full.shape[0]} pixels; the model sees {size_px})",
+               width="stretch")
     right.image(result.reconstructed, caption=f"What the {name} code keeps",
                 width="stretch")
     first, second, third, fourth = st.columns(4)
@@ -188,7 +210,7 @@ with analysis:
     for citation in result.pipeline.citations:
         st.markdown(f"- {citation}")
     st.subheader("Sweeps")
-    if st.button("Run window, lambda and neuron-density sweeps"):
+    if st.button("Run window, lambda and receptor-density sweeps"):
         window_rows, lambda_rows, density_rows = cached_sweeps(image, name, settings)
         st.pyplot(figures.density_sweep({name: density_rows}))
         st.dataframe(density_rows, hide_index=True)
