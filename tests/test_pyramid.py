@@ -139,7 +139,9 @@ def test_a_pooled_cortex_cell_has_the_same_inputs_at_any_image_size(always_pool)
         stage = gabor_bank(dense_mosaic(size, 1), size, [size / 2.0])
         return np.diff(stage.terms[0][-1].indptr).max()
 
-    assert inputs_per_cell(64) == inputs_per_cell(32)
+    # Connected directly, a cell would have 4 times the inputs at twice the size
+    # (about 800, then 3200). Pooled, only the grid's alignment moves the count.
+    assert inputs_per_cell(32) < 50 and inputs_per_cell(64) < 50
 
 
 def test_pooled_center_surround_matches_the_direct_one(always_pool, monkeypatch, rng):
