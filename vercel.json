@@ -7,7 +7,7 @@
     },
     "api": {
       "root": ".",
-      "entrypoint": "biovision.server:app",
+      "entrypoint": "src.biovision.server:app",
       "functions": {
         "src/biovision/server.py": { "maxDuration": 300 }
       }

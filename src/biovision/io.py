@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-SAMPLE_PACKAGE = "biovision.samples"
+SAMPLE_PACKAGE = f"{__package__}.samples"  # works whatever the package is imported as
 
 
 def as_rgb(image) -> np.ndarray:
