@@ -57,8 +57,13 @@ biovision report --species all --out results/
 figure (PNG and PDF), every table (CSV), `results.json` and `report.md`. Add
 `--no-sweeps` to skip the slow parameter sweeps (spike window, regularization
 and receptor density). Add `--density 4` or `--neuron-density 4` to give the
-eye more receptors or cortex cells than the real animal. With no `--image`, a
-bundled sample is used.
+eye more receptors or cortex cells than the real animal. Add `--looks 4` to
+let the eye look four times within the same spike window, moved a little each
+time as a real eye is (fixational eye movements); the looks are combined in
+one reconstruction. At 128 px this adds about 1 dB for the human eye with real
+neurons, and detail for the mouse and fly once spike noise is low, and it
+takes about as many times longer per solver step as there are looks. With no
+`--image`, a bundled sample is used.
 
 From Python:
 

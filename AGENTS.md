@@ -50,6 +50,7 @@ cd web && npm install && npm run build            # build the front end (served 
 cd web && npm run dev                             # front-end dev server on :5173
 cd web && npm test                                # front-end logic tests
 python scripts/benchmark.py --size 128            # PSNR, SSIM, time and peak memory on the samples
+biovision run --species fly --looks 4 --out results/fly.png   # four shifted looks in one spike window
 ```
 
 ## Architecture
@@ -81,6 +82,17 @@ Stage order for every species: `color`, `optics`, `mosaic`, `center_surround`,
 `spikes`. For the human eye the `center_surround` stage makes three classes
 of cell at each position (luminance, red-green, blue-yellow); the cells'
 positions and classes are in `pipeline.metadata["cells"]`.
+
+With `run(looks=K)`, K > 1, the eye looks K times within the spike window,
+moved a little each time (fixational eye movements). `fixate()` in
+`species/eye.py` returns one pipeline for that: a `fixation` stage first
+(`EyeShifts` in `stages/movement.py`, one Fourier-shifted copy of the picture
+per look, offsets from the species' `fixation_deg`), then every linear stage
+of the eye wrapped in `PerLook`, which applies the eye's own shared stage to
+each look. Every stage output and the code then have a leading axis of K
+looks. Anything that draws a run reads `stage_outputs(result)` (the first
+look) and `spike_counts(result)` (summed over looks) from `run.py`, never
+`result.code` directly. The decoder is unchanged: it sees one operator.
 
 The retina and cortex stages are sparse matrices. Up to 128 px for the human
 eye, and always for mouse and fly, each is one matrix (`SparseStage`). Above
@@ -228,6 +240,18 @@ Each of these came out of the prototype. Do not undo one without re-measuring.
   phase 2 entry in the audit document.
 - **Own conjugate-gradient loop.** It records the residual at each iteration at
   no cost and does not depend on SciPy's changing `cg` arguments.
+- **Several looks share the spike window; one look is the default.** With
+  `looks=K` each look lasts `window_ms / K`, so the comparison is of shifts,
+  not of time. The noise-free regularization floor is multiplied by K, because
+  the stacked data term is K times one look's; K looks that do not move then
+  decode to what one look of the whole window gives. Offsets fill a disc of
+  radius `fixation_deg` on a fixed sunflower spiral: a ring and random
+  offsets were no better. `fixation_deg` is 0.25 degrees for the human
+  (Rucci & Poletti 2015), 2.0 for the fly (Juusola et al. 2017) and 1.0 for
+  the mouse (an estimate, no source). Larger amplitudes scored slightly higher
+  for human and mouse and were not taken. One look stays the default because
+  it is the cheapest, not because looks hurt. See phase 3 in the audit
+  document.
 
 ## Expected results
 
@@ -255,6 +279,19 @@ The human eye has 245,484 neurons at 96 px, 369,900 at 128, 1,752,300 at 256
 and 3,595,500 at 512. 512 px is not finished: the eye builds, but a solve
 stopped at the 1000-step limit and the benchmark was cut short by the
 machine's memory. See phase 2b in the audit document.
+
+Several looks in the same 100 ms (`--looks`), 128 px, mean of the three
+samples, seed 0 (`scripts/benchmark.py --looks 4`):
+
+| Species | Real, 1 look | Real, 4 looks | Ideal, 1 look | Ideal, 4 looks | SSIM ideal, 1 to 4 looks |
+|---|---|---|---|---|---|
+| Human | 30.0 dB | 30.9 dB | 40.7 dB | 50.7 dB | 0.995 to 1.000 |
+| Mouse | 12.9 dB | 13.0 dB | 14.95 dB | 15.3 dB | 0.57 to 0.67 |
+| Fly | 13.7 dB | 13.7 dB | 14.25 dB | 14.8 dB | 0.35 to 0.47 |
+
+With real neurons the mouse and fly do not gain at 100 ms: they are limited by
+spike noise, and the mouse's figure moves by 0.2 dB from seed to seed. The
+human run with four looks takes about 30 s (15 s with one).
 
 ## Adding a species
 

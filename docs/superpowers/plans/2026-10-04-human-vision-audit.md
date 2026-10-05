@@ -2,7 +2,7 @@
 
 2026-10-04. An audit of what the human model computes against what the human
 eye and early cortex compute, the additions worth making, their measured
-gains, and the plan to build them. Phases 1 and 2 are implemented; see "Phase 1
+gains, and the plan to build them. Phases 1, 2 and 3 are implemented; see "Phase 1
 result" and "Phase results" below. The later phases are not.
 
 ## The problem
@@ -559,3 +559,189 @@ re-pinned with the old numbers in its docstring:
 between 128 and 256 px (at 192 px the 1.6 scale has a wavelength of exactly
 two pixels). The web app's size hints still describe the old memory use; they
 live in `web/`, which this step did not touch.
+
+
+### Phase 3: fixational eye movements, several shifted looks (2026-10-05)
+
+**What was built.** `run(looks=K)`: the eye looks at the picture K times
+during one spike window, moved a little for each look, and one solve rebuilds
+the picture from all the looks. The default is one look, which is the run as
+it was, bit for bit.
+
+- **`EyeShifts`** (`stages/movement.py`): a linear stage from one picture to K
+  looks, each shifted by its own offset. A shift is a phase ramp in the
+  frequency domain: exact for any fraction of a pixel, equal to `np.roll` for
+  whole pixels, periodic at the edges like `OpticalBlur`. The adjoint shifts
+  each look back and adds them.
+- **`PerLook`**: one stage applied to each look. It holds the eye's own stage,
+  so the sparse matrices exist once however many looks there are.
+- **`fixate(pipeline, looks)`** (`species/eye.py`): the composite. It returns
+  one `Pipeline`: `fixation`, then every linear stage of the eye wrapped in
+  `PerLook`, then the eye's pointwise stages unchanged. The code has one row
+  of spike counts per look. `Pipeline`, `Decoder` and the conjugate-gradient
+  loop were not edited.
+- **`look_offsets`**: where the eye points at each look. K points that fill a
+  disc of radius `fixation_deg` evenly (a sunflower spiral), the same on every
+  run.
+- **`EyeParams.fixation_deg`**: the radius of that disc, per species.
+- **`run()`**: each look lasts `window_ms / looks`; the Poisson draw over the
+  stacked rates gives every look its own noise from the one seeded generator.
+  `stage_outputs(result)` and `spike_counts(result)` give the figures and the
+  server one look's stage outputs and each neuron's spikes summed over its
+  looks. The `neurons` and `mean_spikes` metrics describe the eye over the
+  whole window, so they do not change with the number of looks.
+- `analysis.sweep_looks`, `Settings.looks` on the server (1 to 16), `--looks`
+  on the command line and on `scripts/benchmark.py`.
+
+**The decoder with several looks.** The stacked operator is the looks one
+above another, so its data term is the sum over looks of `S_k^T A^T A S_k`:
+K times one look's when the eye does not move. Each look's window is K times
+shorter, so the noise variance of its drive is K times larger, and
+`noise_variance` returns that with no change (a test holds it). The
+regularization therefore keeps its balance if the noise-free floor grows
+alike: `lam = looks * 1e-4 + 10 * noise_variance`. With that, K looks that do
+not move decode to the picture one look of the whole window gives (a test, to
+1e-6; and on the human eye at 96 px with ideal neurons, four unmoved looks
+give 40.12 dB against 40.11). The preconditioner was not changed: it reads the
+channel coupling from the stacked data term, whatever that is. By reasoning, a
+shift leaves a coupling that is the same at every pixel as it was, so the
+stack's coupling is about K times one look's; this was not measured directly.
+What was measured is that the solve takes fewer steps with shifted looks for
+the mammals (below), and 57 against 38 for the fly with ideal neurons.
+
+**Amplitudes chosen.**
+
+| Species | `fixation_deg` | Basis |
+|---|---|---|
+| Human | 0.25 | Drift and microsaccades of under a degree; over a few seconds the gaze covers about the foveola, a degree across (Rucci & Poletti 2015). Half that width. |
+| Mouse | 1.0 | An estimate: one receptor spacing. Saccades average 9 degrees (Sakatani & Isa 2007); a published figure for how far the eye strays between saccades was not found. |
+| Fly | 2.0 | Photoreceptor contractions move each receptive field by 0.5 to 4 degrees (Juusola et al. 2017). The middle of the range. |
+
+**Measurements.** `scripts/benchmark.py --looks K --no-memory`: 60 degrees,
+mean of astronaut, cat and coffee, real neurons 100 ms in all with seed 0,
+and ideal neurons. Times are per run on a shared machine and vary.
+
+| Eye | Looks | Real PSNR | Real SSIM | Ideal PSNR | Ideal SSIM | Steps, real / ideal | Time, real / ideal |
+|---|---|---|---|---|---|---|---|
+| Human, 128 px | 1 | 30.00 dB | 0.866 | 40.74 dB | 0.995 | 236 / 515 | 15 s / 19 s |
+| | 2 | 30.60 dB | 0.873 | 48.95 dB | 0.999 | 129 / 122 | 16 s / 12 s |
+| | 4 | 30.89 dB | 0.879 | 50.69 dB | 1.000 | 129 / 108 | 30 s / 21 s |
+| | 8 | 30.94 dB | 0.881 | 50.69 dB | 1.000 | 131 / 107 | 52 s / 46 s |
+| Human, 96 px | 1 | 30.63 dB | 0.906 | 40.11 dB | 0.996 | 242 / 519 | 8 s / 11 s |
+| | 2 | 31.56 dB | 0.914 | 46.87 dB | 0.999 | 122 / 119 | 8 s / 6 s |
+| | 4 | 31.74 dB | 0.920 | 47.28 dB | 0.999 | 136 / 102 | 16 s / 11 s |
+| | 8 | 31.90 dB | 0.922 | 47.29 dB | 0.999 | 113 / 101 | 26 s / 21 s |
+| Mouse, 128 px | 1 | 12.93 dB | 0.285 | 14.95 dB | 0.570 | 11 / 192 | 0.3 s / 1.4 s |
+| | 2 | 12.56 dB | 0.291 | 15.15 dB | 0.623 | 10 / 158 | 0.5 s / 3.7 s |
+| | 4 | 12.96 dB | 0.288 | 15.29 dB | 0.665 | 10 / 140 | 1.0 s / 8.0 s |
+| | 8 | 12.92 dB | 0.288 | 15.40 dB | 0.697 | 10 / 129 | 1.5 s / 10.6 s |
+| Fly, 128 px | 1 | 13.74 dB | 0.308 | 14.25 dB | 0.349 | 31 / 38 | 0.3 s / 0.3 s |
+| | 2 | 13.76 dB | 0.326 | 14.66 dB | 0.432 | 33 / 62 | 0.9 s / 3.4 s |
+| | 4 | 13.73 dB | 0.326 | 14.82 dB | 0.471 | 33 / 57 | 3.6 s / 5.0 s |
+| | 8 | 13.79 dB | 0.328 | 14.84 dB | 0.475 | 34 / 57 | 4.8 s / 3.9 s |
+
+One seed is not enough to read the mouse and fly rows with real neurons: with
+no shift at all, the mouse gave 12.93, 12.72, 12.99 and 13.15 dB at 1, 2, 4
+and 8 looks. Mean of seeds 0 to 4, real neurons, 128 px (the spread is the
+standard deviation of the five seed means):
+
+| Looks | Fly PSNR | Fly SSIM | Mouse PSNR | Mouse SSIM |
+|---|---|---|---|---|
+| 1 | 13.75 +- 0.03 dB | 0.311 | 12.89 +- 0.14 dB | 0.287 |
+| 2 | 13.80 +- 0.02 dB | 0.325 | 12.73 +- 0.19 dB | 0.287 |
+| 4 | 13.79 +- 0.03 dB | 0.323 | 12.96 +- 0.27 dB | 0.288 |
+| 8 | 13.82 +- 0.05 dB | 0.324 | 12.93 +- 0.15 dB | 0.289 |
+
+**What the numbers say.**
+
+- **Human: the largest gain, and not the one expected.** +0.9 dB with real
+  neurons at 128 px (+1.3 at 96), +10 dB with ideal neurons, nearly all of it
+  from the second look, and the solve takes a quarter of the steps with ideal
+  neurons. The human receptors are already finer than the pixels, so this is
+  not the receptor mosaic. A possible cause is the cortex cells, which sit on
+  a grid coarser than the pixels: sub-pixel shifts let them sample between
+  their own positions. That explanation was not tested.
+- **Mouse and fly with ideal neurons: more detail, as the biology says.** SSIM
+  goes from 0.57 to 0.70 for the mouse and from 0.35 to 0.47 for the fly at
+  eight looks; PSNR by +0.45 and +0.6 dB. PSNR moves little because it is
+  dominated by the red channel neither eye has.
+- **Mouse and fly with real neurons at 100 ms: no gain in PSNR to speak of.**
+  The fly gains 0.04 to 0.07 dB and 0.013 in SSIM; the mouse is level within
+  its seed spread (two looks came out 0.16 dB lower, about one standard
+  deviation). At 100 ms these eyes are limited by spike noise, and the total
+  looking time is fixed, so the shifts have little to add.
+- The roadmap's estimate, "+3 dB per doubling of looks", assumed each look
+  added time. With the time fixed it does not hold.
+
+**Default.** One look. No number of looks lowers the 128 px real-neuron PSNR
+of the human eye, so by the roadmap's rule the feature could be on; it stays
+off because one look is the cheapest and keeps every earlier result.
+
+**Guards.**
+
+1. One look is bit-identical: the pinned mouse and fly test and the 254
+   earlier tests pass unedited.
+2. Exact adjoints: `EyeShifts` and `PerLook` are in the generic adjoint tests
+   (relative 1e-10), and the stacked operator of each species is held to 1e-9.
+   A whole-pixel shift equals `np.roll` to 1e-12.
+3. Ideal neurons, 128 px: fly +0.57 dB and SSIM +0.12 at four looks, mouse
+   +0.34 dB and +0.10; no number of looks measured is worse than one. A test
+   holds four looks at least 0.2 dB and 0.05 SSIM above one for both.
+4. Time: human, 128 px, one look 15 s real and 19 s ideal; four looks 30 s
+   and 21 s. A solver step costs about five times one look's (0.20 s against
+   0.04 s, from the ideal runs), a little over the four expected, and there
+   are far fewer steps. The sparse matrices are shared (a test checks each
+   wrapped stage is the eye's own object). Peak memory was not traced.
+5. 284 tests pass (254 before).
+
+**Rejected, with measurements** (prototype, 128 px, ideal neurons unless said):
+
+- **A ring of offsets.** Fly, eight looks, at 1.25, 2.5 and 5 degrees: 14.84,
+  14.80, 14.84 dB against 14.80, 14.85, 14.83 for the spiral; mouse at 0.5
+  degrees 15.31 against 15.26. No better overall, and two looks on a ring lie
+  on one line.
+- **Random offsets** (seeded): fly 14.75, 14.81, 14.82 dB, never above the
+  spiral.
+- **A spiral whose first look is unmoved**: the same as the spiral within
+  0.02 dB at eight looks.
+- **Other amplitudes.** Mouse at 0.25, 0.5, 1 and 2 degrees, eight looks:
+  15.14, 15.26, 15.40, 15.44 dB. Human at 96 px, four looks, 0.1, 0.25 and
+  0.5 degrees: 31.00, 31.74, 32.15 dB real and 47.03, 47.28, 47.69 ideal. The
+  fly is level across 1.25 to 5 degrees (above). Larger is a little better for
+  the mouse and the human; the values kept are the ones the sources support,
+  not the best-scoring.
+
+**Deviations from the brief.**
+
+- The noise-free regularization floor is multiplied by the number of looks
+  (above). The brief did not ask for it; without it, more looks would also
+  mean a weaker prior, and the comparison would not be of shifts alone. The
+  alternative (floor left alone) was not measured. A `lam` given by the caller
+  is used as given.
+- `stage_outputs` and `spike_counts` were added so the figures and the server
+  keep working with a stacked code; `report/figures.py` and `server.py` call
+  them.
+- The implementation was written before the new tests were run. They were
+  then watched failing against the code without it, but only as one import
+  error for the whole file, not test by test.
+- `server.py` caps `looks` at 16.
+
+**Not done, not verified.** Why the human eye gains so much (above). Peak
+memory with several looks. Sizes above 128 px. Looks at windows other than
+100 ms, where the mouse and fly may start to gain with real neurons. A shift
+wraps the picture round its edge (up to 4 pixels for the fly at 128 px), where
+a real eye would see new scenery; the decoder knows the same wrap, so this may
+flatter the result slightly at the border. `sweep_looks` is not in the report
+or in the server's sweeps. The web app has no control for looks (`web/` was
+not touched), and with several looks the server's progress events carry a
+stage named `fixation` that the page has not been checked against. The mouse
+amplitude has no source. The amplitude tables come from the prototype, whose
+offsets and solve are the ones built; only the chosen amplitudes were run
+again through `scripts/benchmark.py`.
+
+Sources: Rucci M, Poletti M (2015). Control and functions of fixational eye
+movements. Annu Rev Vis Sci 1:499-518. Juusola M, Dau A, Song Z, et al.
+(2017). Microsaccadic sampling of moving image information provides Drosophila
+hyperacute vision. eLife 6:e26117. Sakatani T, Isa T (2007). Quantitative
+analysis of spontaneous saccade-like rapid eye movements in C57BL/6 mice.
+Neurosci Res 58:324-331.
