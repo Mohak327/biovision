@@ -70,7 +70,8 @@ image (size, size, 3)
   stages from an `EyeParams`.
 - The **decoder** undoes the pointwise stages, then solves
   `(A^T A + lam * P) x = A^T y`, where `A` is the composed linear stages and
-  `P = -laplacian + chroma_weight * chroma`.
+  `P = -laplacian + chroma_weight * chroma`, by preconditioned conjugate
+  gradients.
 - `run()` is the single entry point. The CLI, the server and the report layer
   call it and contain no mathematics. The React app in `web/` only draws what
   the server sends.
@@ -180,8 +181,29 @@ Each of these came out of the prototype. Do not undo one without re-measuring.
 - **Non-oriented cells at the coarsest cortical scale.** Oriented Gabors barely
   respond to the mean level.
 - **Receptors smaller than a pixel are pooled.** Such a position carries every
-  receptor type, and its firing rate is multiplied by the number of real cells
-  it stands for.
+  receptor type.
+- **The spike budget is fixed in degrees, never in pixels.** A model cell
+  fires for the real cells it stands for (`cells_per_neuron` in
+  `species/eye.py`). A cortex cell stands for the real receptors in a patch of
+  field 0.625 degrees across (`spike_patch_deg`; 82 for the human eye, 1 for
+  the mouse), the same at every picture size. A retinal output cell (an eye
+  without a cortex) stands for the real receptors at its position, whose total
+  does not change with the picture. Before, a human cortex cell's rate fell
+  fourfold each time the picture's side doubled. 0.625 degrees is one pixel of
+  the 96 px picture the human gains were chosen at: a calibration.
+- **Human cortex scales at 0.2, 0.8, 1.6 and 3.2 cycles/degree, gains 1, 2, 2,
+  2; the 3.2 scale has luminance cells only.** A scale whose wavelength is
+  under two pixels is left out, so 96 and 128 px use the first two. Measured at
+  256 px: gain 3 at 1.6 clips cells and costs over 5 dB with ideal neurons;
+  luminance only at 1.6 leaves ideal neurons at 36.3 dB against 43.6 with
+  colour; a 0.4 scale adds 0.2 dB. The 3.2 scale's gain was not measured.
+- **The solve is preconditioned by the channel coupling plus the exact
+  prior** (`uncoupling` in `core/decoder.py`), with tolerance 3e-5. A diagonal
+  preconditioner did nothing; a circulant fit to the whole operator failed to
+  converge wherever cells sample on a grid coarser than the pixels. At 1e-4
+  the preconditioned solve stopped 0.8 dB short of the old one with ideal
+  neurons; at 3e-5 it is closer to the exact solution than the old one was, in
+  fewer steps.
 - **Regularization follows the noise.** `lam = 1e-4 + 10 * noise_variance`.
 - **Cone opponency with a gain per channel (human).** Retinal cells combine
   the cones into luminance, red-green and blue-yellow, with gains 1.5, 8 and
@@ -213,7 +235,7 @@ At 128 px across 60 degrees, astronaut sample:
 
 | Species | Neurons | PSNR, no noise | PSNR, 100 ms spikes |
 |---|---|---|---|
-| Human | 369,900 | about 35 dB | about 28 dB |
+| Human | 369,900 | about 35 dB | about 29.5 dB |
 | Mouse | 9,864 | about 15 dB | about 12 dB |
 | Fly | 504 | about 13 dB | about 13 dB |
 
@@ -224,14 +246,15 @@ Human eye at larger sizes, mean of the three samples (`scripts/benchmark.py`):
 
 | Size | PSNR, no noise | PSNR, 100 ms spikes | Time per run | Peak memory |
 |---|---|---|---|---|
-| 128 px | 40.5 dB | 28.5 dB | 16 s real, 38 s ideal | 0.67 GB |
-| 256 px | 32.7 dB | 23.1 dB | 30 s real, 50 s ideal | 0.54 GB |
-| 512 px | 16.1 dB (solver stops at 1000 steps) | 17.2 dB | 4 to 7 minutes | 1.15 GB |
+| 96 px | 40.1 dB | 30.6 dB | 7 s real, 9 s ideal | 0.31 GB (before phase 2b) |
+| 128 px | 40.7 dB | 30.0 dB | 13 s real, 20 s ideal | 0.67 GB (before phase 2b) |
+| 256 px | 43.6 dB | 31.2 dB | 58 s real, 101 s ideal | 1.29 GB |
+| 512 px | not measured | not measured | not measured | 3.3 GB to build, 2.3 GB to solve |
 
-The picture gets worse as it gets larger. The eye has the same 369,900 cortex
-cells at every size, none tuned finer than 0.8 cycles per degree, and each
-model cell's firing rate falls with the number of cones in a pixel. Larger
-sizes need the later phases (finer cortex scales, foveation) to pay off.
+The human eye has 245,484 neurons at 96 px, 369,900 at 128, 1,752,300 at 256
+and 3,595,500 at 512. 512 px is not finished: the eye builds, but a solve
+stopped at the 1000-step limit and the benchmark was cut short by the
+machine's memory. See phase 2b in the audit document.
 
 ## Adding a species
 

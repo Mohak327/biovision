@@ -64,7 +64,7 @@ PARAMS = EyeParams(
     ),
     # Natural images have less contrast at fine scales (Field 1987), so the
     # fine cortex cells get more gain. Measured on the three samples at 256 px:
-    # 2 at every finer scale; 3 clips cells and costs 5 dB with ideal neurons.
+    # 2 at every finer scale; 3 clips cells and costs over 5 dB with ideal neurons.
     cortex_gains=(1.0, 2.0, 2.0, 2.0),
     # Colour is seen at lower resolution than brightness (Mullen 1985): the
     # finest scale has luminance cells only (class 0), a third of the cells.
