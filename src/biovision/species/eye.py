@@ -12,6 +12,7 @@ from ..stages.mosaic import (Mosaic, all_types_at, assign_types, foveated_lattic
                              hex_lattice, mosaic_sampling, square_lattice)
 from ..stages.nonlinearity import LinearRectified
 from ..stages.optics import OpticalBlur, defocus_sigma_deg
+from ..stages.photons import PhotonCatch
 from ..stages.receptive import RetinaClass, center_surround, opponent_retina
 from ..stages.spiking import PoissonSpikes
 
@@ -53,6 +54,21 @@ class EyeParams:
     # that defocus makes. Empty = every receptor type sees the same blur.
     chromatic_defocus_d: tuple[float, ...] = ()
     pupil_mm: float = 0.0
+    # The share of the light that reaches each receptor type through the eye's
+    # own filters (lens, macular pigment), relative to the others. It scales the
+    # photons a receptor catches, not its signal: a receptor adapts its gain to
+    # the light it gets. Empty = 1 for every type.
+    transmission: tuple[float, ...] = ()
+
+
+def local_spacing_px(params: EyeParams, field: VisualField, positions: np.ndarray,
+                     density: float = 1.0) -> np.ndarray:
+    """The real eye's receptor spacing at each position, in pixels."""
+    true_spacing = field.to_px(params.spacing_deg) / np.sqrt(density)
+    if params.lattice != "foveated":
+        return np.full(len(positions), true_spacing)
+    eccentricity = np.linalg.norm(positions - (field.size_px - 1) / 2.0, axis=1)
+    return true_spacing * (1.0 + eccentricity / field.to_px(params.e2_deg))
 
 
 def build_mosaic(params: EyeParams, field: VisualField,
@@ -76,17 +92,14 @@ def build_mosaic(params: EyeParams, field: VisualField,
     spacing = max(true_spacing, MIN_SPACING_PX)
     if params.lattice == "square":
         positions = square_lattice(size, spacing)
-        local_spacing = np.full(len(positions), true_spacing)
     elif params.lattice == "hex":
         positions = hex_lattice(size, spacing)
-        local_spacing = np.full(len(positions), true_spacing)
     elif params.lattice == "foveated":
-        e2 = field.to_px(params.e2_deg)
-        positions = foveated_lattice(size, true_spacing, e2, MIN_SPACING_PX)
-        eccentricity = np.linalg.norm(positions - (size - 1) / 2.0, axis=1)
-        local_spacing = true_spacing * (1.0 + eccentricity / e2)
+        positions = foveated_lattice(size, true_spacing, field.to_px(params.e2_deg),
+                                     MIN_SPACING_PX)
     else:
         raise ValueError(f"unknown lattice '{params.lattice}'")
+    local_spacing = local_spacing_px(params, field, positions, density)
     cells_per_position = float(np.mean(np.maximum(MIN_SPACING_PX / local_spacing, 1.0) ** 2))
     n_types = len(params.receptor_names)
     if params.colocated:
@@ -99,6 +112,24 @@ def build_mosaic(params: EyeParams, field: VisualField,
     mosaic = Mosaic(np.vstack([shared.positions, single]),
                     np.concatenate([shared.types, single_types]), n_types)
     return mosaic, cells_per_position
+
+
+def receptors_each(params: EyeParams, field: VisualField, mosaic: Mosaic,
+                   density: float = 1.0) -> np.ndarray:
+    """How many real receptors each receptor of the model's mosaic stands for.
+
+    1 where the eye's receptors are at least a pixel apart. Where they are
+    smaller, a position stands for all the real receptors in its pixel, and
+    its receptor of each type for that type's share of them (all of them in
+    an eye whose positions carry every type, such as a fly's facets).
+    """
+    spacing = local_spacing_px(params, field, mosaic.positions, density)
+    in_pixel = np.maximum(MIN_SPACING_PX / spacing, 1.0) ** 2
+    if params.colocated:
+        return in_pixel
+    share = np.asarray(params.type_fractions, dtype=float)
+    share = share / share.sum()
+    return np.where(spacing < MIN_SPACING_PX, in_pixel * share[mosaic.types], 1.0)
 
 
 def cells_per_neuron(params: EyeParams, field: VisualField, mosaic: Mosaic,
@@ -152,6 +183,8 @@ def assemble(name: str, field: VisualField, params: EyeParams,
         raise ValueError(f"neuron_density must be positive, got {neuron_density}")
     size = field.size_px
     n_types = len(params.receptor_names)
+    if params.transmission and len(params.transmission) != n_types:
+        raise ValueError("transmission needs one value per receptor type")
     mosaic, cells_per_position = build_mosaic(params, field, density)
     sigma_center = max(field.to_px(params.center_sigma_deg), MIN_SIGMA_PX)
     sigma_surround = max(field.to_px(params.surround_sigma_deg), 2 * MIN_SIGMA_PX)
@@ -190,6 +223,7 @@ def assemble(name: str, field: VisualField, params: EyeParams,
     return Pipeline(name, field, tuple(stages), description, citations,
                     {"params": params, "mosaic": mosaic, "cells": cells,
                      "cells_per_position": cells_per_position,
+                     "receptors_each": receptors_each(params, field, mosaic, density),
                      "cells_per_neuron": real_cells, "density": density,
                      "neuron_density": neuron_density})
 
@@ -209,3 +243,26 @@ def fixate(pipeline: Pipeline, looks: int) -> Pipeline:
     stages = [EyeShifts(offsets, channels, size)]
     stages += [PerLook(stage, looks) for stage in pipeline.linear_stages]
     return replace(pipeline, stages=(*stages, *pipeline.pointwise_stages))
+
+
+def lit(pipeline: Pipeline, photons_per_s: float, window_s: float) -> Pipeline:
+    """An eye in light of a given level: its receptors count photons (`PhotonCatch`).
+
+    `photons_per_s` is how many photons one real receptor catches each second
+    where the picture is white. A model receptor catches that for every real
+    receptor it stands for, over the window, less what the eye's own filters
+    absorb before its type (`transmission`). The stage sits straight after the
+    mosaic, and changes the code only through its noise.
+    """
+    if photons_per_s <= 0:
+        raise ValueError(f"photons_per_s must be positive, got {photons_per_s}")
+    params, mosaic = pipeline.metadata["params"], pipeline.metadata["mosaic"]
+    transmission = np.asarray(params.transmission or (1.0,) * mosaic.n_types)
+    photons = (photons_per_s * window_s * pipeline.metadata["receptors_each"]
+               * transmission[mosaic.types])
+    stages = []
+    for stage in pipeline.stages:
+        stages.append(stage)
+        if stage.name == "mosaic":
+            stages.append(PhotonCatch(photons))
+    return replace(pipeline, stages=tuple(stages))

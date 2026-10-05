@@ -22,6 +22,15 @@ class LinearStage(Stage):
     @abstractmethod
     def adjoint(self, y: np.ndarray) -> np.ndarray: ...
 
+    def encode(self, x: np.ndarray, rng: np.random.Generator | None = None) -> np.ndarray:
+        """What the stage passes on while an image is encoded.
+
+        `forward`, for nearly every stage. A stage with noise of its own
+        overrides this to add it when given a generator. The noise has zero
+        mean, so `forward` stays the linear map the decoder inverts.
+        """
+        return self.forward(x)
+
 
 class PointwiseStage(Stage):
     """An elementwise function with an elementwise inverse."""

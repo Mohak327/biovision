@@ -64,3 +64,6 @@ class PerLook(LinearStage):
 
     def adjoint(self, y: np.ndarray) -> np.ndarray:
         return np.stack([self.stage.adjoint(look) for look in y])
+
+    def encode(self, x: np.ndarray, rng: np.random.Generator | None = None) -> np.ndarray:
+        return np.stack([self.stage.encode(look, rng) for look in x])

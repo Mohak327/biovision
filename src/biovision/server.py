@@ -56,6 +56,7 @@ class Settings(BaseModel):
     density: float = Field(1.0, gt=0, le=64)
     neuron_density: float = Field(1.0, gt=0, le=16)
     looks: int = Field(1, ge=1, le=16)
+    photons_per_s: float | None = Field(None, gt=0)
 
     def run_options(self) -> dict:
         return self.model_dump(exclude={"species"})

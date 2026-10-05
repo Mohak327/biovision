@@ -11,7 +11,7 @@ from .core.field import VisualField
 from .core.metrics import psnr, ssim
 from .core.pipeline import NeuralCode, Pipeline
 from .core.registry import species
-from .species.eye import fixate
+from .species.eye import fixate, lit
 from .stages.spiking import PoissonSpikes
 
 LAM_FLOOR = 1e-4  # regularization when there is no noise
@@ -32,6 +32,7 @@ class Settings:
     density: float
     neuron_density: float
     looks: int = 1
+    photons_per_s: float | None = None
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,23 @@ def spike_counts(result: RunResult) -> np.ndarray:
     return responses if result.settings.looks == 1 else responses.sum(axis=0)
 
 
+def _photon_noise_variance(pipeline: Pipeline, code: NeuralCode,
+                           rng: np.random.Generator) -> float:
+    """Mean variance that photon noise adds to the linear drive.
+
+    Estimated from one fresh draw of the receptors' photon noise, passed
+    through the stages after them. Over thousands of neurons one draw is
+    enough, and it tells the decoder how large the noise is, not what it was.
+    """
+    stages = pipeline.linear_stages
+    index = [stage.name for stage in stages].index("photons")
+    signal = code.intermediates[stages[index - 1].name]
+    noise = stages[index].encode(signal, rng) - signal
+    for stage in stages[index + 1:]:
+        noise = stage.forward(noise)
+    return float(np.mean(noise**2))
+
+
 def _stage_image(output: np.ndarray) -> np.ndarray | None:
     """A stage output as a (size, size, 3) image, or None if it is not image-like."""
     if output.ndim != 3:
@@ -97,7 +115,7 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
         window_ms: float = 100.0, noise: bool = True, lam: float | None = None,
         chroma_weight: float = CHROMA_WEIGHT, seed: int = 0,
         density: float = 1.0, neuron_density: float = 1.0, looks: int = 1,
-        on_progress=None) -> RunResult:
+        photons_per_s: float | None = None, on_progress=None) -> RunResult:
     """Encode `image` through a species' visual system and reconstruct it.
 
     `image` is any (height, width[, channels]) array; it is centre-cropped and
@@ -110,6 +128,13 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
     little each time (`fixate`). The looks share the window, `window_ms / looks`
     each, with independent spike noise, and one solve rebuilds the picture from
     all of them. The total looking time is the same for any number of looks.
+
+    `photons_per_s` is the light level: the photons one real receptor catches
+    each second where the picture is white. Light arrives as photons, so in dim
+    light the receptors' own signal is noisy (`lit`). None is unlimited light,
+    with no photon noise. For a human cone, 1 cd/m2 seen through a 3 mm pupil
+    is about 900 photons a second: sunlight is about 1e7, a lit room 1e5.
+    `noise=False` gives the noise-free code, with neither spike nor photon noise.
     """
     if window_ms <= 0:
         raise ValueError(f"window_ms must be positive, got {window_ms}")
@@ -119,6 +144,8 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
         raise ValueError(f"density must be positive, got {density}")
     if neuron_density <= 0:
         raise ValueError(f"neuron_density must be positive, got {neuron_density}")
+    if photons_per_s is not None and photons_per_s <= 0:
+        raise ValueError(f"photons_per_s must be positive, got {photons_per_s}")
     if looks != int(looks) or looks < 1:
         raise ValueError(f"looks must be a whole number of at least 1, got {looks}")
     looks = int(looks)
@@ -127,9 +154,12 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
     pipeline = build_pipeline(species_name, size_px, float(fov_deg), float(density),
                               float(neuron_density))
     eye = pipeline
+    look_s = window_ms / 1000.0 / looks
+    if photons_per_s is not None:
+        pipeline = lit(pipeline, photons_per_s, look_s)
     if looks > 1:
-        pipeline = fixate(eye, looks)
-    pipeline = pipeline.replace(PoissonSpikes(window_ms / 1000.0 / looks))
+        pipeline = fixate(pipeline, looks)
+    pipeline = pipeline.replace(PoissonSpikes(look_s))
     rng = np.random.default_rng(seed) if noise else None
     code = pipeline.encode(original.transpose(2, 0, 1), rng)
     on_iteration = None
@@ -144,7 +174,10 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
         # The data term of K looks is K times one look's, so the floor grows alike.
         lam = looks * LAM_FLOOR
         if noise:
-            lam += NOISE_GAIN * Decoder(pipeline, 1.0).noise_variance(code)
+            variance = Decoder(pipeline, 1.0).noise_variance(code)
+            if photons_per_s is not None:
+                variance += _photon_noise_variance(pipeline, code, rng)
+            lam += NOISE_GAIN * variance
     decoder = Decoder(pipeline, lam, chroma_weight)
     reconstruction = decoder.decode(code, on_iteration)
     reconstructed = reconstruction.image.transpose(1, 2, 0)
@@ -158,6 +191,7 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
     }
     settings = Settings(species_name, float(fov_deg), size_px, float(window_ms),
                         noise, float(lam), chroma_weight, seed, float(density),
-                        float(neuron_density), looks)
+                        float(neuron_density), looks,
+                        None if photons_per_s is None else float(photons_per_s))
     return RunResult(original, reconstructed, pipeline, code, reconstruction,
                      metrics, settings, time.perf_counter() - start)

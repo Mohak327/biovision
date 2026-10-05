@@ -25,6 +25,8 @@ def main() -> None:
     parser.add_argument("--species", default="human")
     parser.add_argument("--looks", type=int, default=1,
                         help="looks that share the spike window, the eye moved for each")
+    parser.add_argument("--photons", type=float, default=None,
+                        help="photons a receptor catches per second at white; unlimited if omitted")
     parser.add_argument("--no-memory", action="store_true",
                         help="do not trace memory; tracing makes the times several times longer")
     args = parser.parse_args()
@@ -39,7 +41,7 @@ def main() -> None:
             start = time.perf_counter()
             result = run(io.load_sample(name), args.species, fov_deg=FOV_DEG,
                          size_px=args.size, window_ms=WINDOW_MS, noise=noise, seed=0,
-                         looks=args.looks)
+                         looks=args.looks, photons_per_s=args.photons)
             times.append(time.perf_counter() - start)
             psnrs.append(result.metrics["psnr_db"])
             ssims.append(result.metrics["ssim"])

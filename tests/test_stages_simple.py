@@ -5,6 +5,7 @@ from biovision.stages.color import ColorProjection
 from biovision.stages.movement import EyeShifts, PerLook
 from biovision.stages.nonlinearity import LinearRectified
 from biovision.stages.optics import OpticalBlur
+from biovision.stages.photons import PhotonCatch
 from biovision.stages.spiking import PoissonSpikes
 
 SIZE = 16
@@ -17,6 +18,7 @@ def linear_stages():
         OpticalBlur([0.4, 2.5], 2, SIZE, name="optics_per_channel"),
         EyeShifts([(0.3, -1.7), (2.0, 0.5), (-0.25, 0.0)], 2, SIZE),
         PerLook(OpticalBlur(1.5, 2, SIZE), 3),
+        PhotonCatch(np.full(40, 25.0)),
     ]
 
 

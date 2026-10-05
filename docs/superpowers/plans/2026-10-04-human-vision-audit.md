@@ -870,7 +870,7 @@ macular pigment), and the third is the parameter that ties them (pupil size).
   chromatic eye of Thibos et al. (1992), refraction in dioptres relative to
   589 nm = 1.68524 - 0.63346 / (wavelength in micrometres - 0.21410), with
   555 nm in focus and cone peaks near 565, 545 and 440 nm. The blur sigmas are
-  0.0074, 0.0075 and 0.041 degrees (0.44, 0.45 and 2.5 arcminutes): the S cones
+  0.0073, 0.0075 and 0.041 degrees (0.44, 0.45 and 2.5 arcminutes): the S cones
   see a picture nearly six times as blurred.
 - Mouse and fly: unchanged, and held so by a test. No published defocus per
   receptor type was at hand for either; the mouse's blur (0.3 degrees) and the
@@ -950,3 +950,164 @@ Sources: Thibos LN, Ye M, Zhang X, Bradley A (1992). The chromatic eye: a new
 reduced-eye model of ocular chromatic aberration in humans. Appl Opt
 31:3594-3600. Wandell BA, Useful numbers in vision science (axial chromatic
 aberration 2 dioptres over the visible spectrum; pupil 2 to 8 mm).
+
+
+### Phase 10: photon noise (2026-10-05)
+
+**What was built.** `run(photons_per_s=N)`: the light level, as the photons
+one real receptor catches each second where the picture is white. The default
+is None, unlimited light, which is the run as it was, bit for bit.
+
+- **`PhotonCatch`** (`stages/photons.py`). Each receptor counts photons: the
+  count is Poisson with mean `photons x signal`, and the stage passes on
+  `count / photons`, the signal with noise of variance `signal / photons`. As
+  a linear map it is the identity, with itself as exact adjoint (it is in the
+  generic adjoint tests), so the operator the decoder inverts is unchanged.
+- **`LinearStage.encode(x, rng)`** (`core/stage.py`): what a stage passes on
+  while a picture is encoded. It is `forward` for every stage but
+  `PhotonCatch`, which adds its noise when given a generator.
+  `Pipeline.encode` calls it in place of `forward`, and `PerLook` hands it on
+  to each look. These three small edits are the only changes to existing
+  stage and pipeline code; `Decoder` and the solve were not touched.
+- **`lit(pipeline, photons_per_s, window_s)`** (`species/eye.py`): the eye in
+  light of that level, a composite like `fixate`. It places a `PhotonCatch`
+  straight after the mosaic. A model receptor catches
+  `photons_per_s x window x receptors_each x transmission`.
+- **`receptors_each`**: how many real receptors each model receptor stands
+  for. 1 where receptors are at least a pixel apart; where they are smaller, a
+  pixel's real receptors (from the local spacing, so about 2,000 cones in the
+  central pixel at 128 px and 13 at the edge) times the type's share (60%, 30%
+  and 10% for L, M and S). So blue is the noisiest channel in dim light, as in
+  a real eye. `build_mosaic` and it share `local_spacing_px`.
+- **`EyeParams.transmission`**: the share of light the eye's own filters let
+  through to each receptor type. It scales the photon catch, not the signal
+  (phase 9 explains why). No species sets it; see "not verified".
+- **The regularization accounts for it.** `lam = floor + 10 x (spike variance +
+  photon variance)`. The photon term is the mean square of one fresh draw of
+  the receptors' noise passed through the stages after them
+  (`_photon_noise_variance` in `run.py`): the size of the noise, not the draw
+  that was encoded.
+- `Settings.photons_per_s` on the server, `--photons` on the command line and
+  on `scripts/benchmark.py`.
+
+**Where the parameter lives.** The light level is a property of the scene, so
+it is an option of the run, like the spike window. What the eye does with the
+light (how many receptors share a pixel, what its filters absorb) is on the
+eye. The unit is photons at the receptor because that needs no constant this
+work could not support for the mouse and the fly. For the human eye the
+conversion is: retinal illuminance in trolands = luminance (cd/m2) x pupil
+area (mm2), and one troland is about 137 photons absorbed per second by an L
+cone and 110 by an M cone. Through the 3 mm pupil of phase 9 (7.1 mm2), 1 cd/m2
+is about 900 photons per cone per second:
+
+| Scene | Luminance | Photons per cone per second |
+|---|---|---|
+| Sunlight | 10,000 cd/m2 | about 1e7 |
+| Overcast, bright shade | 1,000 cd/m2 | about 1e6 |
+| A lit room, a monitor | 100 cd/m2 | about 1e5 |
+| Dusk | 1 to 10 cd/m2 | about 1e3 to 1e4 |
+
+**`noise=False` means no noise at all**: exact spikes and exact light. The
+"ideal + photons" column below (ideal neurons that still count photons) comes
+from the prototype, which has that combination; `run()` does not offer it.
+
+**Measurements.** Mean of the three samples, 60 degrees, 100 ms, seed 0.
+"Real" is `run()` as built. Unlimited light is the result after phase 9.
+
+| Human eye | Photons per cone per second | Real PSNR | Real SSIM | Ideal + photons | Clipped | lam |
+|---|---|---|---|---|---|---|
+| 128 px | unlimited (default) | 29.97 dB | 0.864 | 40.76 dB | 0.029% | 2.1e-3 |
+| | 1e7 (sunlight) | 29.94 dB | 0.865 | 39.84 dB | 0.030% | 2.1e-3 |
+| | 1e6 | 29.81 dB | 0.860 | 36.70 dB | 0.029% | 2.1e-3 |
+| | 1e5 (a lit room) | 28.86 dB | 0.837 | 31.41 dB | 0.030% | 2.4e-3 |
+| | 1e4 (dusk) | 24.91 dB | 0.747 | 25.27 dB | 0.030% | 5.3e-3 |
+| | 1e3 | 18.42 dB | 0.528 | not run | 0.071% | 3.5e-2 |
+| 96 px | unlimited (default) | 30.59 dB | 0.904 | 40.13 dB | 0.055% | |
+| | 1e7 | 30.58 dB | 0.903 | not run | 0.055% | 2.1e-3 |
+| | 1e6 | 30.45 dB | 0.903 | not run | 0.055% | 2.1e-3 |
+| | 1e5 | 29.26 dB | 0.879 | not run | 0.055% | 2.3e-3 |
+| | 1e4 | 24.87 dB | 0.785 | not run | 0.055% | 4.6e-3 |
+
+Mouse and fly at 128 px, from the prototype (the same noise and the same
+regularization as built):
+
+| Photons per receptor per second | Mouse real | Mouse ideal + photons | Fly real | Fly ideal + photons |
+|---|---|---|---|---|
+| unlimited | 12.93 dB | 14.95 dB | 13.74 dB | 14.25 dB |
+| 1e6 | 12.94 dB | 14.95 dB | 13.75 dB | 14.22 dB |
+| 1e5 | 13.01 dB | 14.95 dB | 13.73 dB | 14.14 dB |
+| 1e4 | 13.07 dB | 14.92 dB | 13.67 dB | 13.96 dB |
+| 1e3 | 13.18 dB | 14.73 dB | 13.23 dB | 13.29 dB |
+| 1e2 | 13.13 dB | 13.74 dB | 12.44 dB | 12.38 dB |
+| 1e1 | 12.25 dB | 11.97 dB | 11.62 dB | 11.58 dB |
+
+**What the numbers say.**
+
+- **In sunlight photon noise is nothing** for the human eye with real neurons
+  (-0.03 dB at 128 px, -0.01 at 96, inside the seed's spread). It starts to
+  matter between 1e6 and 1e5 photons per cone per second: -0.15 dB at 1e6,
+  **-1.1 dB in a lit room** (1e5), -5 dB at dusk (1e4), -11.5 dB at 1e3. In a
+  lit room the photon noise alone (31.4 dB) is already close to the spike
+  noise alone (30.0 dB); below that the light, not the neurons, is the limit.
+- That is a higher light level than expected, and two things in the model
+  push it up: the model's peripheral cones are sparser than a real eye's (its
+  spacing doubles every 2 degrees, giving 13 cones in a pixel at the edge of
+  a 60 degree picture), and the spike budget is generous (82 real cells, each
+  at 100 spikes/s, behind every cortex cell). Neither was changed.
+- With ideal neurons, light is the only noise: 39.8 dB in sunlight against
+  40.8 with unlimited light.
+- The mouse with real neurons does not notice the light until 10 photons per
+  receptor per second: it is limited by its spikes (its PSNR moves by 0.2 dB
+  from seed to seed, which is all the rise from 12.93 to 13.18 is). The fly
+  begins to lose at about 1e3 to 1e4.
+- **Counting the photon noise in the regularization helps**: at 128 px,
+  28.94 dB against 28.76 without it at 1e5, and 24.89 against 23.80 at 1e4
+  (prototype).
+- **Transmission** (S cones at 0.3, human, 128 px, as built): 28.67 dB at 1e5
+  (-0.2) and 24.41 dB at 1e4 (-0.5).
+
+**Default: unlimited light.** By the roadmap's rule sunlight could be the
+default for the human eye (-0.03 dB). It is not, for three reasons: a
+sunlight figure is known here only for human L and M cones, and a default
+borrowed for the mouse and the fly would be invented; any default light
+draws photons from the run's generator, which moves every real-neuron result
+by its seed spread and would unpin the mouse and fly baselines for no change
+in meaning; and the difference is 0.03 dB.
+
+**Guards.** With the default, every result is bit-identical: the pinned mouse
+and fly test and the 294 earlier tests pass unedited. `PhotonCatch` is in the
+generic adjoint tests, and a test holds that `lit` leaves the composed
+operator exactly as it was. Clipping stays under 0.1% down to 1e3 photons
+(0.071% there). 318 tests pass (294 before; 24 new).
+
+**Deviations from the brief.**
+
+- `noise=False` switches off photon noise as well as spike noise. One
+  generator drives a run, and "no generator" already meant "the exact mean"
+  for the spikes; a second switch would have needed a second generator
+  through `Pipeline.encode`.
+- No named levels (daylight, dusk) in the interface: a name would need a
+  conversion for each species. The table above gives them for the human eye.
+- `core/stage.py` and `core/pipeline.py` were edited (`encode`), which the
+  guideline "a new computation should not require editing the decoder" does
+  not forbid but leans against. Noise in the middle of the linear chain has no
+  other way in.
+- The new tests were first run as a file that could not be imported, then all
+  at once against the finished code; one then failed (a tolerance) and was
+  corrected. They were not watched failing one behaviour at a time.
+
+**Not verified.** The human `transmission` (no value could be checked; from
+memory, about 0.3 to 0.5 for S cones); the photon catch of S cones, which is
+assumed equal to L and M per cone before transmission; the troland conversion
+is for parafoveal cones (10-degree fundamentals) and foveal cones, which are
+thinner, catch fewer; luminance figures are round numbers. Rods are not
+modelled, and at dusk a real eye is already using them (phase 14), so the
+low-light rows describe a cone-only eye. The pupil does not open as the light
+falls. Photon noise with several looks runs and is tested for shape, but was
+not measured. Mouse, fly and "ideal + photons" numbers are from the prototype
+and were not repeated with `run()`. 256 px was not run.
+
+Sources: Psychtoolbox-3, `ComputePhotopigmentBleaching` help text (1 td = 137
+isomerizations per L cone per second and 110 per M cone, 560 nm, CIE 10-degree
+fundamentals). Wandell BA, Useful numbers in vision science (sunlight 1e4
+cd/m2, indoor lighting 1e2, a troland is 1 cd/m2 through 1 mm2 of pupil).

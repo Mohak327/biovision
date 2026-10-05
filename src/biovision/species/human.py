@@ -93,8 +93,20 @@ PARAMS = EyeParams(
     # 700 nm, which agrees with the published total.
     chromatic_defocus_d=(0.05, 0.06, 0.95),
     # Pupil diameter in daylight; it ranges from 2 mm in bright light to 8 mm in
-    # the dark (Wandell's table of useful numbers). 3 mm blurs the S cones' light by 2.4 arcminutes.
+    # the dark (Wandell's table of useful numbers). 3 mm blurs the S cones' light
+    # by 2.4 arcminutes.
     pupil_mm=3.0,
+    # The pupil also sets the light level for `run(photons_per_s=...)`: retinal
+    # illuminance in trolands is luminance (cd/m2) times pupil area (mm2), and one
+    # troland is about 137 photons absorbed per second by an L cone and 110 by an
+    # M cone (Psychtoolbox, ComputePhotopigmentBleaching: 560 nm, CIE 10-degree
+    # cone fundamentals). Through 3 mm, 1 cd/m2 is about 900 photons per cone per
+    # second. No figure for S cones was found.
+    # `transmission` is left at 1 for every cone type. The lens and the macular
+    # pigment absorb short wavelengths before they reach the S cones, but no
+    # value could be checked against a source for this work (from memory, a
+    # macular density of 0.35 at 460 nm and a lens density of a few tenths, so
+    # roughly 0.3 to 0.5 for S). Measured at 0.3: -0.2 dB in a lit room.
 )
 
 

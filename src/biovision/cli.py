@@ -28,11 +28,17 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
                              "for each (fixational eye movements)")
 
 
+    parser.add_argument("--photons", type=float, default=None,
+                        help="light level: photons a receptor catches per second where the "
+                             "picture is white (human cone: sunlight about 1e7, a lit room "
+                             "1e5); unlimited light if omitted")
+
+
 def _settings(args) -> dict:
     return dict(size_px=args.size, fov_deg=args.fov, window_ms=args.window,
                 noise=not args.no_noise, lam=args.lam, seed=args.seed,
                 density=args.density, neuron_density=args.neuron_density,
-                looks=args.looks)
+                looks=args.looks, photons_per_s=args.photons)
 
 
 def _image(args):

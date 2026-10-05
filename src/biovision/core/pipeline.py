@@ -88,7 +88,7 @@ class Pipeline:
         x = image
         intermediates = {}
         for stage in self.linear_stages:
-            x = stage.forward(x)
+            x = stage.encode(x, rng)
             intermediates[stage.name] = x
         for stage in self.pointwise_stages:
             x = stage.forward(x, rng)
