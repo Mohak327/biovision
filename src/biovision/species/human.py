@@ -30,6 +30,8 @@ CITATIONS = (
     "cells in macaque visual cortex. Vision Res 22:545-559.",
     "Mullen KT (1985). The contrast sensitivity of human colour vision to red-green "
     "and blue-yellow chromatic gratings. J Physiol 359:381-400.",
+    "Rucci M, Poletti M (2015). Control and functions of fixational eye movements. "
+    "Annu Rev Vis Sci 1:499-518.",
 )
 
 PARAMS = EyeParams(
@@ -69,6 +71,12 @@ PARAMS = EyeParams(
     # Colour is seen at lower resolution than brightness (Mullen 1985): the
     # finest scale has luminance cells only (class 0), a third of the cells.
     cortex_types=(None, None, None, (0,)),
+    # While fixating, the eye drifts and makes microsaccades of under a degree;
+    # over a few seconds the gaze covers about the foveola, a degree across
+    # (Rucci & Poletti 2015). A disc of half that width. Measured at 96 px with
+    # four looks: 0.1, 0.25 and 0.5 degrees give 31.0, 31.7 and 32.2 dB with
+    # real neurons against 30.6 with one look.
+    fixation_deg=0.25,
 )
 
 

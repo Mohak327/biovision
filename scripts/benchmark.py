@@ -23,6 +23,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--size", type=int, default=128, help="picture size in pixels")
     parser.add_argument("--species", default="human")
+    parser.add_argument("--looks", type=int, default=1,
+                        help="looks that share the spike window, the eye moved for each")
     parser.add_argument("--no-memory", action="store_true",
                         help="do not trace memory; tracing makes the times several times longer")
     args = parser.parse_args()
@@ -36,7 +38,8 @@ def main() -> None:
         for name in names:
             start = time.perf_counter()
             result = run(io.load_sample(name), args.species, fov_deg=FOV_DEG,
-                         size_px=args.size, window_ms=WINDOW_MS, noise=noise, seed=0)
+                         size_px=args.size, window_ms=WINDOW_MS, noise=noise, seed=0,
+                         looks=args.looks)
             times.append(time.perf_counter() - start)
             psnrs.append(result.metrics["psnr_db"])
             ssims.append(result.metrics["ssim"])
@@ -48,7 +51,7 @@ def main() -> None:
     tracemalloc.stop()
 
     print(f"{args.species}, {args.size} px, {FOV_DEG:g} degrees, "
-          f"{int(result.metrics['neurons'])} neurons")
+          f"{int(result.metrics['neurons'])} neurons, {args.looks} look(s)")
     print(f"{'neurons':<14}{'mean PSNR':>10}{'mean SSIM':>11}{'s per run':>11}{'slowest':>9}"
           f"{'most steps':>12}{'most clipped':>14}   PSNR per sample ({' / '.join(names)})")
     for label, psnrs, ssims, times, steps, clipped in rows:

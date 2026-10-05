@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from biovision.stages.color import ColorProjection
+from biovision.stages.movement import EyeShifts, PerLook
 from biovision.stages.nonlinearity import LinearRectified
 from biovision.stages.optics import OpticalBlur
 from biovision.stages.spiking import PoissonSpikes
@@ -13,6 +14,8 @@ def linear_stages():
     return [
         ColorProjection([[0.2, 0.7, 0.1], [0.0, 0.1, 0.9]], SIZE),
         OpticalBlur(1.5, 2, SIZE),
+        EyeShifts([(0.3, -1.7), (2.0, 0.5), (-0.25, 0.0)], 2, SIZE),
+        PerLook(OpticalBlur(1.5, 2, SIZE), 3),
     ]
 
 

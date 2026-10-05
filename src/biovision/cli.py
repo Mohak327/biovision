@@ -23,12 +23,16 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
                         help="receptor density relative to the real eye")
     parser.add_argument("--neuron-density", type=float, default=1.0,
                         help="cortex cell density relative to the real animal")
+    parser.add_argument("--looks", type=int, default=1,
+                        help="looks that share the spike window, the eye moved a little "
+                             "for each (fixational eye movements)")
 
 
 def _settings(args) -> dict:
     return dict(size_px=args.size, fov_deg=args.fov, window_ms=args.window,
                 noise=not args.no_noise, lam=args.lam, seed=args.seed,
-                density=args.density, neuron_density=args.neuron_density)
+                density=args.density, neuron_density=args.neuron_density,
+                looks=args.looks)
 
 
 def _image(args):

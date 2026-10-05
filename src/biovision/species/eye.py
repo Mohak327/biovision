@@ -1,5 +1,5 @@
 """Shared assembly of an eye from parameters. Species files supply the numbers."""
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -7,6 +7,7 @@ from ..core.field import VisualField
 from ..core.pipeline import Pipeline
 from ..stages.color import ColorProjection
 from ..stages.gabor import gabor_bank
+from ..stages.movement import EyeShifts, PerLook, look_offsets
 from ..stages.mosaic import (Mosaic, all_types_at, assign_types, foveated_lattice,
                              hex_lattice, mosaic_sampling, square_lattice)
 from ..stages.nonlinearity import LinearRectified
@@ -44,6 +45,9 @@ class EyeParams:
     # The retinal classes each cortical frequency carries (None = all); empty = all, at all.
     cortex_types: tuple[tuple[int, ...] | None, ...] = ()
     spike_patch_deg: float = 0.625  # a cortex cell fires for the real receptors in this patch
+    # How far the gaze strays from its mean position while the eye fixates: the
+    # radius of the disc that several looks are spread over. 0 = an eye held still.
+    fixation_deg: float = 0.0
 
 
 def build_mosaic(params: EyeParams, field: VisualField,
@@ -168,3 +172,20 @@ def assemble(name: str, field: VisualField, params: EyeParams,
                      "cells_per_position": cells_per_position,
                      "cells_per_neuron": real_cells, "density": density,
                      "neuron_density": neuron_density})
+
+
+def fixate(pipeline: Pipeline, looks: int) -> Pipeline:
+    """An eye that looks at the picture `looks` times, moved a little each time.
+
+    A real eye is never still. Each look lands the picture on a different part
+    of the mosaic, so together the looks sample the scene where a single look
+    has no receptor. The result is one pipeline: the picture is shifted once
+    per look (`fixation`), then every look passes through the eye's own stages,
+    which are shared, not copied. Its code has one row of spike counts per look.
+    """
+    params = pipeline.metadata["params"]
+    channels, size, _ = pipeline.in_shape
+    offsets = look_offsets(looks, pipeline.field.to_px(params.fixation_deg))
+    stages = [EyeShifts(offsets, channels, size)]
+    stages += [PerLook(stage, looks) for stage in pipeline.linear_stages]
+    return replace(pipeline, stages=(*stages, *pipeline.pointwise_stages))

@@ -32,7 +32,7 @@ from .core.metrics import radial_power_spectrum
 from .core.registry import species
 from .report import tables
 from .report.export import build_report, write_report, zip_report
-from .run import RunResult, build_pipeline, run
+from .run import RunResult, build_pipeline, run, spike_counts, stage_outputs
 
 FRAME_INTERVAL_S = 0.05  # send a decoding frame at most this often
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
@@ -55,6 +55,7 @@ class Settings(BaseModel):
     seed: int = Field(0, ge=0)
     density: float = Field(1.0, gt=0, le=64)
     neuron_density: float = Field(1.0, gt=0, le=16)
+    looks: int = Field(1, ge=1, le=16)
 
     def run_options(self) -> dict:
         return self.model_dump(exclude={"species"})
@@ -125,10 +126,10 @@ def summarize(result: RunResult) -> dict:
     params = pipeline.metadata["params"]
     frequency, original = radial_power_spectrum(result.original)
     _, rebuilt = radial_power_spectrum(result.reconstructed)
-    counts, edges = np.histogram(np.asarray(result.code.responses).ravel(), bins=HISTOGRAM_BINS)
+    counts, edges = np.histogram(np.asarray(spike_counts(result)).ravel(), bins=HISTOGRAM_BINS)
     error = result.reconstructed - result.original
     # One value per receptor, for the retina view: what each receptor caught.
-    caught = result.code.intermediates["mosaic"]
+    caught = stage_outputs(result)["mosaic"]
     low, high = float(caught.min()), float(caught.max())
     responses = (caught - low) / (high - low) if high > low else np.zeros_like(caught)
     return {

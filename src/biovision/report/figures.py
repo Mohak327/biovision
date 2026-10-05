@@ -3,7 +3,7 @@ import numpy as np
 
 from ..analysis import sampling_limit_cpd
 from ..core.metrics import radial_power_spectrum
-from ..run import RunResult
+from ..run import RunResult, spike_counts, stage_outputs
 from ..stages.gabor import gabor_kernel
 from ..stages.receptive import gaussian
 from .style import PALETTE, new_figure, show_image
@@ -41,7 +41,7 @@ def _scatter(axis, result: RunResult, positions: np.ndarray, values: np.ndarray,
 
 def pipeline_panel(result: RunResult):
     """The image after each stage, from the original to the reconstruction."""
-    inter = result.code.intermediates
+    inter = stage_outputs(result)
     mosaic, cells = _mosaic(result), result.pipeline.metadata["cells"]
     panels = [("original", "image", result.original)]
     for name, output in inter.items():
@@ -141,7 +141,7 @@ def color_model(result: RunResult):
 
 def neural_code(result: RunResult):
     """The distribution of spike counts across the output neurons."""
-    counts = np.asarray(result.code.responses).ravel()
+    counts = np.asarray(spike_counts(result)).ravel()
     figure, axes = new_figure(1, 1, width=4.5, height=3.0)
     axis = axes[0, 0]
     axis.hist(counts, bins=40, color=PALETTE[0])

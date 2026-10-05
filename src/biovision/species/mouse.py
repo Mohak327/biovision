@@ -20,6 +20,8 @@ CITATIONS = (
     "cortex. J Neurosci 28:7520-7536.",
     "Stone C, Pinto LH (1993). Response properties of ganglion cells in the isolated "
     "mouse retina. Vis Neurosci 10:31-39.",
+    "Sakatani T, Isa T (2007). Quantitative analysis of spontaneous saccade-like rapid "
+    "eye movements in C57BL/6 mice. Neurosci Res 58:324-331.",
 )
 
 PARAMS = EyeParams(
@@ -36,6 +38,12 @@ PARAMS = EyeParams(
     surround_sigma_deg=4.0,
     surround_weight=0.7,
     cortex_sf_cpd=(0.04, 0.16),  # Niell & Stryker 2008: preferred about 0.04 cycles/degree
+    # An estimate, not a published figure: one receptor spacing. A mouse's
+    # saccades average 9 degrees (Sakatani & Isa 2007); how far its eye strays
+    # between them was not found in the literature. Measured at 128 px with eight
+    # looks and ideal neurons: 0.25, 0.5, 1 and 2 degrees give 15.14, 15.26, 15.40
+    # and 15.44 dB against 14.95 with one look.
+    fixation_deg=1.0,
 )
 
 

@@ -21,6 +21,8 @@ CITATIONS = (
     "pigments of Drosophila. J Neurosci 19:10716-10726.",
     "Laughlin SB (1981). A simple coding procedure enhances a neuron's information "
     "capacity. Z Naturforsch C 36:910-912.",
+    "Juusola M, Dau A, Song Z, et al. (2017). Microsaccadic sampling of moving image "
+    "information provides Drosophila hyperacute vision. eLife 6:e26117.",
 )
 
 PARAMS = EyeParams(
@@ -38,6 +40,12 @@ PARAMS = EyeParams(
     surround_sigma_deg=6.0,  # lateral inhibition from neighbouring cartridges
     surround_weight=0.6,
     rest_hz=2500.0,
+    # A fly's eye is fixed to its head, but its photoreceptors twitch: light makes
+    # them contract, which moves each receptive field by 0.5 to 4 degrees and lets
+    # the fly resolve detail finer than its facet spacing (Juusola et al. 2017).
+    # The middle of that range. Measured at 128 px with ideal neurons: 1.25, 2.5
+    # and 5 degrees give the same gain within 0.05 dB.
+    fixation_deg=2.0,
 )
 
 
