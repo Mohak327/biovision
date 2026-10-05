@@ -41,6 +41,9 @@ class EyeParams:
     # Retinal cell classes that combine receptor types; empty = one cell per receptor.
     retina_classes: tuple[RetinaClass, ...] = ()
     cortex_gains: tuple[float, ...] = ()  # one per cortical frequency; empty = all 1
+    # The retinal classes each cortical frequency carries (None = all); empty = all, at all.
+    cortex_types: tuple[tuple[int, ...] | None, ...] = ()
+    spike_patch_deg: float = 0.625  # a cortex cell fires for the real receptors in this patch
 
 
 def build_mosaic(params: EyeParams, field: VisualField,
@@ -89,6 +92,30 @@ def build_mosaic(params: EyeParams, field: VisualField,
     return mosaic, cells_per_position
 
 
+def cells_per_neuron(params: EyeParams, field: VisualField, mosaic: Mosaic,
+                     cells_per_position: float) -> float:
+    """How many real cells' spikes one model output cell fires: the spike budget.
+
+    The eye has a fixed number of real cells in a field of view, so this number
+    must never depend on how many pixels the picture has.
+
+    A cortex cell stands for the real receptors in a patch of field
+    `spike_patch_deg` across (at least one). The patch is fixed in degrees, and
+    so is the grid of cortex cells, so a cell fires at the same rate at every
+    picture size. A scale too fine for a small picture is left out there: its
+    real cells would fire, but tell nothing about a picture without that detail.
+
+    Without a cortex the output cells are retinal, one at each model position,
+    and each stands for the real receptors at its position. Positions follow
+    the pixels where receptors are smaller than a pixel, so that number changes
+    with the picture, but positions times receptors each, the total, does not.
+    """
+    if not params.cortex_sf_cpd:
+        return cells_per_position
+    receptors = cells_per_position * len(np.unique(mosaic.positions, axis=0))
+    return max(receptors * (params.spike_patch_deg / field.fov_deg) ** 2, 1.0)
+
+
 def assemble(name: str, field: VisualField, params: EyeParams,
              description: str, citations: tuple[str, ...], density: float = 1.0,
              neuron_density: float = 1.0) -> Pipeline:
@@ -122,19 +149,22 @@ def assemble(name: str, field: VisualField, params: EyeParams,
     if params.cortex_sf_cpd:
         # A wavelength under two pixels is beyond what the image can carry.
         gains = params.cortex_gains or (1.0,) * len(params.cortex_sf_cpd)
-        scales = [(field.to_px(1.0 / sf), gain) for sf, gain in zip(params.cortex_sf_cpd, gains)]
-        scales = [(w, gain) for w, gain in scales if w >= 2.0 * MIN_SPACING_PX]
+        types = params.cortex_types or (None,) * len(params.cortex_sf_cpd)
+        scales = [(field.to_px(1.0 / sf), gain, kept)
+                  for sf, gain, kept in zip(params.cortex_sf_cpd, gains, types)]
+        scales = [scale for scale in scales if scale[0] >= 2.0 * MIN_SPACING_PX]
         if scales:
-            stages.append(gabor_bank(cells, size, [w for w, _ in scales],
-                                     min_spacing_px=MIN_SPACING_PX, density=neuron_density,
-                                     gains=[gain for _, gain in scales]))
+            wavelengths, gains, types = zip(*scales)
+            stages.append(gabor_bank(cells, size, wavelengths, min_spacing_px=MIN_SPACING_PX,
+                                     density=neuron_density, gains=gains, types=types))
+    # One model cell stands for several real cells, and their spikes add.
+    real_cells = cells_per_neuron(params, field, mosaic, cells_per_position)
     stages += [
-        # One model cell stands for every real cell at its position, so their
-        # spikes add: the effective rate scales with the number of cells.
-        LinearRectified(params.rest_hz * cells_per_position, params.contrast_gain),
+        LinearRectified(params.rest_hz * real_cells, params.contrast_gain),
         PoissonSpikes(DEFAULT_WINDOW_S),
     ]
     return Pipeline(name, field, tuple(stages), description, citations,
                     {"params": params, "mosaic": mosaic, "cells": cells,
-                     "cells_per_position": cells_per_position, "density": density,
+                     "cells_per_position": cells_per_position,
+                     "cells_per_neuron": real_cells, "density": density,
                      "neuron_density": neuron_density})

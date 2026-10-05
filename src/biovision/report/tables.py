@@ -20,6 +20,8 @@ def parameters_table(pipeline: Pipeline) -> list[dict]:
             for field in dataclasses.fields(params)]
     rows.append({"species": pipeline.name, "parameter": "cells_per_position",
                  "value": f"{pipeline.metadata['cells_per_position']:.2f}", "unit": "cells"})
+    rows.append({"species": pipeline.name, "parameter": "cells_per_neuron",
+                 "value": f"{pipeline.metadata['cells_per_neuron']:.2f}", "unit": "cells"})
     return rows
 
 
