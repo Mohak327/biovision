@@ -62,8 +62,13 @@ let the eye look four times within the same spike window, moved a little each
 time as a real eye is (fixational eye movements); the looks are combined in
 one reconstruction. At 128 px this adds about 1 dB for the human eye with real
 neurons, and detail for the mouse and fly once spike noise is low, and it
-takes about as many times longer per solver step as there are looks. With no
-`--image`, a bundled sample is used.
+takes about as many times longer per solver step as there are looks. Add
+`--photons 1e5` to set the light level: the photons a receptor catches each
+second where the picture is white. Light arrives as photons, so in dim light
+the receptors' own signal is noisy. For a human cone, sunlight is about 1e7,
+a lit room 1e5 and dusk 1e4; the human reconstruction loses nothing in
+sunlight, about 1 dB in a lit room and 5 dB at dusk. Without the option the
+light is unlimited. With no `--image`, a bundled sample is used.
 
 From Python:
 
@@ -81,7 +86,9 @@ Each species is a pipeline of stages. Linear stages come first, then pointwise
 stages:
 
 1. `color`: RGB projected onto the species' photoreceptor types.
-2. `optics`: blur by the eye's point-spread function.
+2. `optics`: blur by the eye's point-spread function. The human eye cannot
+   focus every wavelength at once, so its S cones see a more blurred picture
+   than its L and M cones (chromatic aberration).
 3. `mosaic`: sampling at the receptor positions (foveated, square or hexagonal).
 4. `center_surround`: difference-of-Gaussians receptive fields. In the human
    eye these cells combine the cone types into brightness, red-green and
@@ -135,6 +142,17 @@ def build(field: VisualField) -> Pipeline:
 - Where receptors are smaller than a pixel, the image sets the resolution, not
   the eye. One model cell then stands for all the real cells in that pixel.
 - The mouse model is its cone pathway in daylight.
+- No rods. Photon noise (`--photons`) is for cones only, so the model's dusk
+  is darker for it than for a real eye, which has switched to rods by then.
+- The picture is three numbers per pixel, not a spectrum. Chromatic
+  aberration uses one focus per cone type, and real spectra would need
+  hyperspectral pictures (phase 12 in the audit document).
+- The human eye is calibrated across 60 degrees. Across a degree or two the
+  mosaic's detail shows (single cones, no S cones at the centre of gaze), but
+  about 2% of retinal cells are driven to zero and quality is low.
+- The lens and macular pigment, the jitter of real cone positions, and how the
+  pupil opens in dim light have parameters or notes but no values: none could
+  be supported from a source.
 - Still images only; no motion pathways.
 
 ## Tests

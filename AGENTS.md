@@ -51,6 +51,7 @@ cd web && npm run dev                             # front-end dev server on :517
 cd web && npm test                                # front-end logic tests
 python scripts/benchmark.py --size 128            # PSNR, SSIM, time and peak memory on the samples
 biovision run --species fly --looks 4 --out results/fly.png   # four shifted looks in one spike window
+biovision run --species human --photons 1e5 --out results/room.png   # photon noise: a lit room
 ```
 
 ## Architecture
@@ -93,6 +94,14 @@ each look. Every stage output and the code then have a leading axis of K
 looks. Anything that draws a run reads `stage_outputs(result)` (the first
 look) and `spike_counts(result)` (summed over looks) from `run.py`, never
 `result.code` directly. The decoder is unchanged: it sees one operator.
+
+With `run(photons_per_s=N)` the receptors count photons. `lit()` in
+`species/eye.py` returns the eye with a `photons` stage (`PhotonCatch` in
+`stages/photons.py`) straight after `mosaic`. As a linear map that stage is
+the identity, so the decoder's operator is unchanged; its Poisson noise is
+added only while encoding, through `LinearStage.encode(x, rng)`, which is
+`forward` for every other stage. `noise=False` gives the noise-free code:
+no spike noise and no photon noise. The default, None, is unlimited light.
 
 The retina and cortex stages are sparse matrices. Up to 128 px for the human
 eye, and always for mouse and fly, each is one matrix (`SparseStage`). Above
@@ -253,6 +262,49 @@ Each of these came out of the prototype. Do not undo one without re-measuring.
   it is the cheapest, not because looks hurt. See phase 3 in the audit
   document.
 
+- **The stored picture's encoding is the receptors' compression; no cone
+  adaptation stage** (phase 5). Pictures are used as stored (sRGB), which is a
+  compressive encoding of light. Linear light with no compression costs 6.4 dB
+  with real neurons at 128 px. A per-cone compression with the solve in cone
+  space costs about 4 dB from the readout alone (the priors act on cone
+  signals and the inverse cone matrix magnifies noise); the cone's own curve
+  (Naka-Rushton) per primary costs 1.7 dB on an sRGB metric. Nothing was built.
+- **Chromatic aberration is on for the human eye** (phase 9). `OpticalBlur`
+  takes a sigma per receptor type; S cones are 0.95 dioptres out of focus
+  (Thibos et al. 1992), 2.4 arcminutes of blur through a 3 mm pupil
+  (`chromatic_defocus_d`, `pupil_mm`). Across 60 degrees it moves the result
+  by 0.03 dB; across 2 degrees it costs 0.5 dB with ideal neurons at the
+  retina. Mouse and fly have one blur, as before: no published values.
+- **Lens and macular pigment are not a scale on the signal.** The colour
+  matrix is built from sensitivities measured at the cornea and its rows sum
+  to 1 (each cone adapted to its light), so the pigments are already in it.
+  Scaling S by 0.5 again cost 1.85 dB and unbalanced the blue-yellow cells.
+  What the pigments cost is photons: `EyeParams.transmission` scales the
+  photon catch only. No species sets it; no value could be supported.
+- **Photon noise is an option of the run, off by default** (phase 10).
+  `photons_per_s` is photons per real receptor per second at white; a model
+  receptor catches for the real ones it stands for (`receptors_each`). Human,
+  128 px: -0.03 dB in sunlight (1e7), -0.15 at 1e6, -1.1 in a lit room (1e5),
+  -5 at dusk (1e4). The regularization counts the photon noise (one fresh
+  draw of it, passed through the later stages): +0.2 dB at 1e5 and +1.1 at
+  1e4 against leaving it out. Unlimited light is the default because a
+  sunlight figure exists only for human L and M cones, and any default would
+  move every seeded result for a 0.03 dB change.
+- **No S cones within 0.175 degrees of the centre of gaze (human), on**
+  (phase 13; Curcio et al. 1991). Across 60 degrees the zone is smaller than a
+  pixel and changes nothing. Two rules in the retina came with it and must
+  stay: a cell whose centre reaches no receptor of a type it weights is
+  silent, and a pool through a coarse layer is a mean over the receptors it
+  reaches. Without them the zone took the 1 degree retina from 18.4 to 9.9 dB
+  with ideal neurons; with them, to 17.3.
+- **Jitter is built and off; the L:M ratio is `human.cone_fractions`.** Jitter
+  of 0.1 or 0.2 of the spacing changed nothing across 1 degree, and no figure
+  for it could be supported. L:M of 1.1, 2 and 16.5 across 1 degree: 17.2,
+  17.1 and 16.1 dB.
+- **The narrow-field human eye is not calibrated.** Across 1 or 2 degrees,
+  2% of retinal cells clip and the ideal solve can fail to converge, before
+  and after these phases. Gains and solver were chosen at 60 degrees.
+
 ## Expected results
 
 At 128 px across 60 degrees, astronaut sample:
@@ -271,9 +323,13 @@ Human eye at larger sizes, mean of the three samples (`scripts/benchmark.py`):
 | Size | PSNR, no noise | PSNR, 100 ms spikes | Time per run | Peak memory |
 |---|---|---|---|---|
 | 96 px | 40.1 dB | 30.6 dB | 7 s real, 9 s ideal | 0.31 GB (before phase 2b) |
-| 128 px | 40.7 dB | 30.0 dB | 13 s real, 20 s ideal | 0.67 GB (before phase 2b) |
+| 128 px | 40.8 dB | 30.0 dB | 13 s real, 20 s ideal | 0.67 GB (before phase 2b) |
 | 256 px | 43.6 dB | 31.2 dB | 58 s real, 101 s ideal | 1.29 GB |
 | 512 px | not measured | not measured | not measured | 3.3 GB to build, 2.3 GB to solve |
+
+The 96 and 128 px rows are as measured after chromatic aberration went in
+(phase 9): 30.59 and 40.13 dB at 96 px, 29.97 and 40.76 at 128 (before: 30.63
+and 40.11, 30.00 and 40.74). The 256 px row was not measured again.
 
 The human eye has 245,484 neurons at 96 px, 369,900 at 128, 1,752,300 at 256
 and 3,595,500 at 512. 512 px is not finished: the eye builds, but a solve
@@ -292,6 +348,21 @@ samples, seed 0 (`scripts/benchmark.py --looks 4`):
 With real neurons the mouse and fly do not gain at 100 ms: they are limited by
 spike noise, and the mouse's figure moves by 0.2 dB from seed to seed. The
 human run with four looks takes about 30 s (15 s with one).
+
+In dimmer light (`--photons`, photons per cone per second at white), human
+eye, real neurons, mean of the three samples, seed 0
+(`scripts/benchmark.py --photons 1e5`):
+
+| Light | Photons | 96 px | 128 px |
+|---|---|---|---|
+| Unlimited (default) | | 30.59 dB | 29.97 dB |
+| Sunlight, 10,000 cd/m2 | 1e7 | 30.58 dB | 29.94 dB |
+| 1,000 cd/m2 | 1e6 | 30.45 dB | 29.81 dB |
+| A lit room, 100 cd/m2 | 1e5 | 29.26 dB | 28.86 dB |
+| Dusk, 10 cd/m2 | 1e4 | 24.87 dB | 24.91 dB |
+
+The luminances assume a 3 mm pupil and about 125 photons per cone per second
+per troland. The model has no rods, so the dusk row is a cone-only eye.
 
 ## Adding a species
 
