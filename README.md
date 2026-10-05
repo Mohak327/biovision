@@ -128,7 +128,10 @@ def build(field: VisualField) -> Pipeline:
 ## Limits
 
 - Ultraviolet is approximated from the blue channel of an RGB image.
-- Image values are treated as linear light.
+- Image values are used as stored (sRGB-encoded), not converted to light. That
+  encoding is itself compressive, and it stands in for the receptors' own
+  compression (Weber's law); a separate cone compression was measured and not
+  added (phase 5 in the audit document).
 - Where receptors are smaller than a pixel, the image sets the resolution, not
   the eye. One model cell then stands for all the real cells in that pixel.
 - The mouse model is its cone pathway in daylight.

@@ -745,3 +745,102 @@ movements. Annu Rev Vis Sci 1:499-518. Juusola M, Dau A, Song Z, et al.
 hyperacute vision. eLife 6:e26117. Sakatani T, Isa T (2007). Quantitative
 analysis of spontaneous saccade-like rapid eye movements in C57BL/6 mice.
 Neurosci Res 58:324-331.
+
+
+### Phase 5: cone light adaptation, Weber's law (2026-10-05)
+
+**Outcome: measured, not built.** No code changed. The model already has a
+compressive receptor response, by another name, and every more literal version
+measured worse for reasons that belong to the decoder and the metric, not to
+the eye.
+
+**What the model does today.** A picture file holds sRGB-encoded values: the
+light, compressed by roughly a power of 1/2.2. The pipeline takes those values
+as its signal (the README said "treated as linear light"; that line is
+corrected). So the eye already works on a compressed signal, the decoder
+solves in that compressed domain, and the spike noise lands evenly on the
+sRGB scale, which is the scale PSNR is measured on.
+
+**Options considered.**
+
+1. *A compressive stage at the receptors* (after `mosaic`). Faithful, but a
+   nonlinearity between linear stages: the solve is no longer linear. Rejected
+   without measuring; that is phase 4's decision.
+2. *An invertible pointwise transform of the picture, per cone type*: linearize
+   the picture to light, project to L, M, S, compress each cone's signal, run
+   the linear stages on that, solve for the compressed cone picture, invert at
+   the end. The solve stays linear. This is the principled version: across 60
+   degrees the optics and the mosaic are the identity at these sizes, so
+   compressing the picture per cone is the same as compressing at the receptor.
+3. *The same transform per RGB primary*: compress each primary, leave the eye
+   and the decoder as they are. Not what a cone does (a cone sees a mixture of
+   the primaries), but it changes only the curve.
+4. *Leave the picture as stored* (today): option 3 with the sRGB curve.
+
+**Measurements.** Prototype in a scratch folder; human eye, 128 px, 60
+degrees, mean of the three samples, real neurons 100 ms seed 0. PSNR is
+always against the original picture as stored (sRGB). The cone curve is
+Naka-Rushton, `R = I^n / (I^n + h^n)` scaled so white gives 1, with n = 0.74
+(Valeton & van Norren 1983; Boynton & Whitten 1970 give 0.7) and the
+half-saturation `h` at the mean light of the picture, which is an assumption
+(the three samples' mean linear light is 0.25, 0.16 and 0.15).
+
+| Signal the eye encodes | Decoded in | Real PSNR | Real SSIM | Ideal PSNR | Clipped | Steps, real |
+|---|---|---|---|---|---|---|
+| **sRGB values as stored (today)** | RGB | **30.00 dB** | 0.866 | **40.74 dB** | 0.029% | 236 |
+| Linear light, no compression | RGB | 23.63 dB | 0.734 | 37.35 dB | 0.006% | 237 |
+| Per primary, power 1/2.2 | RGB | 29.76 dB | 0.868 | 40.82 dB | 0.029% | 237 |
+| Per primary, Naka-Rushton n 0.74, h 0.18 | RGB | 28.32 dB | 0.849 | 35.58 dB | 0.047% | 234 |
+| Per cone, sRGB curve | cone space | 26.08 dB | 0.774 | 38.84 dB | 0.030% | 523 |
+| Per cone, power 1/2.2 | cone space | 25.99 dB | 0.778 | 38.91 dB | 0.029% | 528 |
+| Per cone, Naka-Rushton n 0.74, h 0.18 | cone space | 24.98 dB | 0.783 | 34.53 dB | 0.056% | 506 |
+| Per cone, Naka-Rushton n 0.74, h 0.5 | cone space | 26.39 dB | 0.786 | 37.77 dB | 0.045% | 518 |
+| Per cone, Naka-Rushton n 1, h 0.18 | cone space | 25.51 dB | 0.779 | 35.13 dB | 0.057% | 497 |
+
+**What the numbers say.**
+
+- **Compression matters a great deal, and the model has it.** Without any
+  (linear light) the eye loses 6.4 dB with real neurons: spike noise that is
+  even in light is large in the dark parts of the picture once it is shown on
+  the sRGB scale. That is Weber's law at work, and the roadmap's "+1 to +3 dB
+  in dark regions" is, if anything, an underestimate of what the stored
+  picture's encoding already gives.
+- **Solving in cone space costs about 4 dB by itself.** With the curve held
+  fixed (the sRGB curve), moving the transform from the primaries to the cones
+  takes real neurons from 30.0 to 26.1 dB and doubles the solver's steps. The
+  decoder's priors (smooth, channels alike) then act on compressed cone
+  signals, and the answer is carried back through the inverse cone matrix,
+  which magnifies noise because L and M are nearly the same. This is a
+  property of the readout, not of the eye.
+- **The cone's own curve is worse than the sRGB curve on this metric**: -1.7 dB
+  real and -5.2 dB ideal per primary. It is flatter near white, so its inverse
+  magnifies errors in the bright parts. sRGB was designed to be even in
+  perceived lightness, and PSNR on sRGB values rewards exactly that.
+- An invertible transform loses no information; every difference in the
+  "ideal" column is the regularization and the final clip acting in another
+  domain.
+
+**Decision.** Not built. The one version that is both principled (per cone)
+and keeps the solve linear carries a 4 dB penalty that the eye does not have;
+the version without that penalty (per primary) is not what a cone does and
+would be a second, worse copy of what the stored picture already provides.
+By the letter of the roadmap's rule a feature that lowers the score by more
+than 0.5 dB is built and left off. It was not, because what would be switched
+on is a decoder artefact or a change of metric, and a run option whose only
+effect is one of those would mislead. This is a deviation, stated as one.
+
+**What it would take to do properly.** A compressive stage at the receptors
+(option 1) with an iterative decoder, together with phase 4; and a quality
+measure in light or in a perceptual space, so that the comparison does not
+favour the sRGB curve by construction.
+
+**Not verified.** 96 px; other half-saturation rules (a local mean, as real
+cones adapt to their own neighbourhood); mouse and fly. One row of the first
+run ("per cone, sRGB curve") was lost when the machine ran short of memory and
+was measured again in a second run.
+
+Sources: Valeton JM, van Norren D (1983). Light adaptation of primate cones:
+an analysis based on extracellular data. Vision Res 23:1539-1547. Boynton RM,
+Whitten DN (1970). Visual adaptation in monkey cones: recordings of late
+receptor potentials. Science 170:1423-1426. Both exponents are quoted from
+memory of those papers and were not re-read for this work.
