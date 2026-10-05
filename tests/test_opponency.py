@@ -28,9 +28,15 @@ def signal(mosaic, levels):
 
 
 def test_baselines_for_mouse_and_fly_are_unchanged(sample):
-    """Opponency is a human-only change; the other eyes must give the same numbers."""
-    expected = {("mouse", True): 11.999567473089972, ("mouse", False): 14.713525802445666,
-                ("fly", True): 13.131761814781836, ("fly", False): 13.708582084257925}
+    """Opponency is a human-only change; the other eyes must give the same numbers.
+
+    Re-pinned once, when the decoder's solve became preconditioned and its
+    tolerance went from 1e-4 to 3e-5: the same system, solved more closely.
+    Before: mouse 11.999567473 and 14.713525802, fly 13.131761815 and
+    13.708582084 (real and ideal). The largest move is +0.042 dB.
+    """
+    expected = {("mouse", True): 11.999458055142469, ("mouse", False): 14.75544952536662,
+                ("fly", True): 13.133059867104087, ("fly", False): 13.73031381124944}
     for (name, noise), value in expected.items():
         result = run(sample, name, size_px=64, noise=noise)
         assert result.metrics["psnr_db"] == pytest.approx(value, abs=1e-9)

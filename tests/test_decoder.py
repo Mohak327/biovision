@@ -3,7 +3,8 @@ import dataclasses
 import numpy as np
 import pytest
 
-from biovision.core.decoder import Decoder, conjugate_gradient
+from biovision import io, species
+from biovision.core.decoder import Decoder, channel_coupling, conjugate_gradient, uncoupling
 from biovision.core.field import VisualField
 from biovision.core.pipeline import Pipeline
 from biovision.core.regularizers import chroma, laplacian
@@ -134,3 +135,98 @@ def test_decode_reports_clipped_image_estimates(rng):
     assert all(image.shape == (3, SIZE, SIZE) for _, image in frames)
     assert all(image.min() >= 0.0 and image.max() <= 1.0 for _, image in frames)
     np.testing.assert_array_equal(frames[-1][1], result.image)
+
+
+def normal_equations(pipeline, image, lam, weight):
+    """The decoder's system built by hand: its data term, its prior and the right-hand side."""
+    operator = pipeline.linear_operator()
+    shape = pipeline.in_shape
+
+    def data(v):
+        return operator.rmatvec(operator.matvec(v))
+
+    def prior(v):
+        x = v.reshape(shape)
+        return lam * (-laplacian(x) + weight * chroma(x)).ravel()
+
+    return data, prior, operator.rmatvec(operator.matvec(image.ravel()))
+
+
+def test_a_preconditioner_does_not_change_the_solution(rng):
+    m = rng.standard_normal((20, 20))
+    scale = np.diag(10.0 ** rng.uniform(-2, 2, 20))
+    spd = scale @ (m @ m.T + 20.0 * np.eye(20)) @ scale
+    b = rng.standard_normal(20)
+    plain, plain_residuals, _ = conjugate_gradient(lambda v: spd @ v, b, 1e-12, 2000)
+    x, residuals, converged = conjugate_gradient(lambda v: spd @ v, b, 1e-12, 2000,
+                                                 precondition=lambda r: r / np.diag(spd))
+    assert converged and residuals[-1] <= 1e-12
+    np.testing.assert_allclose(x, np.linalg.solve(spd, b), rtol=1e-8)
+    np.testing.assert_allclose(x, plain, rtol=1e-8)
+    assert len(residuals) < len(plain_residuals)  # and a fitting one gets there sooner
+
+
+def test_channel_coupling_recovers_a_mixing_of_the_channels(rng):
+    m = rng.standard_normal((3, 3))
+    mixing = m @ m.T + np.eye(3)
+    shape = (3, SIZE, SIZE)
+    coupling = channel_coupling(lambda v: (mixing @ v.reshape(3, -1)).ravel(), shape)
+    np.testing.assert_allclose(coupling, mixing, atol=1e-12)
+
+
+def test_channel_coupling_of_an_eye_is_symmetric_and_positive(rng):
+    pipeline = small_pipeline()
+    data, _, _ = normal_equations(pipeline, rng.random((3, SIZE, SIZE)), 1e-2, 0.5)
+    coupling = channel_coupling(data, pipeline.in_shape)
+    np.testing.assert_allclose(coupling, coupling.T, atol=1e-12)
+    assert np.linalg.eigvalsh(coupling).min() > 0.0
+
+
+def test_uncoupling_inverts_a_channel_mixing_plus_the_prior_exactly(rng):
+    """When the data term is the same mixing at every pixel, nothing is approximated."""
+    m = rng.standard_normal((3, 3))
+    mixing = m @ m.T + np.eye(3)
+    shape = (3, SIZE, SIZE + 1)  # an odd width too
+
+    def data(v):
+        return (mixing @ v.reshape(3, -1)).ravel()
+
+    def prior(v):
+        x = v.reshape(shape)
+        return 0.3 * (-laplacian(x) + 0.5 * chroma(x)).ravel()
+
+    x = rng.standard_normal(int(np.prod(shape)))
+    precondition = uncoupling(data, prior, shape)
+    np.testing.assert_allclose(precondition(data(x) + prior(x)), x, atol=1e-10)
+    y = rng.standard_normal(x.size)
+    assert precondition(x) @ y == pytest.approx(x @ precondition(y))  # symmetric
+    assert precondition(x) @ x > 0.0
+
+
+def test_decode_matches_the_unpreconditioned_solve(rng):
+    pipeline = small_pipeline()
+    image = rng.random((3, SIZE, SIZE))
+    lam, weight = 1e-2, 0.5
+    data, prior, b = normal_equations(pipeline, image, lam, weight)
+    plain, _, converged = conjugate_gradient(lambda v: data(v) + prior(v), b, 1e-10, 2000)
+    assert converged
+    result = Decoder(pipeline, lam, weight, max_iter=2000, tol=1e-10).decode(pipeline.encode(image))
+    assert result.converged
+    np.testing.assert_allclose(result.image, np.clip(plain.reshape(3, SIZE, SIZE), 0.0, 1.0),
+                               atol=1e-7)
+
+
+def test_uncoupling_shortens_the_solve_for_an_eye(sample):
+    """The mouse senses green and blue and no red, so its channels are far from alike."""
+    pipeline = species.get("mouse")(VisualField(64, 60.0))
+    image = io.to_square(sample, 64).transpose(2, 0, 1)
+    data, prior, b = normal_equations(pipeline, image, 1e-2, 0.1)  # a noisy run's lam
+
+    def apply(v):
+        return data(v) + prior(v)
+
+    plain, plain_residuals, _ = conjugate_gradient(apply, b, 1e-4, 1000)
+    x, residuals, converged = conjugate_gradient(
+        apply, b, 1e-4, 1000, precondition=uncoupling(data, prior, pipeline.in_shape))
+    assert converged and len(residuals) < 0.5 * len(plain_residuals)
+    np.testing.assert_allclose(x, plain, atol=5e-3)  # both stop at the same loose tolerance
