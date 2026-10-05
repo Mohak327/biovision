@@ -7,11 +7,14 @@ from biovision import species
 from biovision.core.field import VisualField
 from biovision.species import fly, human
 from biovision.species.eye import assemble
+from biovision.stages.nonlinearity import OnOffPair
 
 
 def rest_hz(pipeline):
-    """The firing rate of a model cell with no signal: rest_hz times the real cells it stands for."""
-    return pipeline.pointwise_stages[0].rest_hz
+    """rest_hz times the real cells a model cell stands for: the firing rate of one
+    cell with no signal, or what a cell of an ON/OFF pair adds at the top of its range."""
+    rate = pipeline.pointwise_stages[0]
+    return rate.swing_hz if isinstance(rate, OnOffPair) else rate.rest_hz
 
 
 def build_human(field, **changes):

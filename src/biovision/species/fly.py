@@ -21,6 +21,8 @@ CITATIONS = (
     "pigments of Drosophila. J Neurosci 19:10716-10726.",
     "Laughlin SB (1981). A simple coding procedure enhances a neuron's information "
     "capacity. Z Naturforsch C 36:910-912.",
+    "Joesch M, Schnell B, Raghu SV, Reiff DF, Borst A (2010). ON and OFF pathways in "
+    "Drosophila motion vision. Nature 468:300-304.",
     "Juusola M, Dau A, Song Z, et al. (2017). Microsaccadic sampling of moving image "
     "information provides Drosophila hyperacute vision. eLife 6:e26117.",
 )
@@ -46,6 +48,12 @@ PARAMS = EyeParams(
     # The middle of that range. Measured at 128 px with ideal neurons: 1.25, 2.5
     # and 5 degrees give the same gain within 0.05 dB.
     fixation_deg=2.0,
+    # `spontaneous_hz` is left at None: one cell stands for the ON/OFF pair. The
+    # lamina's L1 and L2 cells feed the ON and OFF motion pathways (Joesch et
+    # al. 2010), but each answers to both signs with a graded potential; the
+    # rectification comes later, in the medulla, which this model does not have.
+    # Measured at 128 px, five seeds, with a rectified pair: 13.99 dB against
+    # 13.75 with real neurons.
 )
 
 

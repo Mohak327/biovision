@@ -47,7 +47,12 @@ def main() -> None:
             ssims.append(result.metrics["ssim"])
             solve = result.reconstruction
             steps.append(solve.iterations if solve.converged else float("inf"))
-            clipped.append(100.0 * np.mean(result.code.intermediates["rate"] == 0.0))
+            # A signal is clipped where one cell around a resting rate would stop
+            # firing. An ON/OFF pair loses nothing there: its OFF cell is above range.
+            eye = result.pipeline
+            drive = result.code.intermediates[eye.linear_stages[-1].name]
+            gain = eye.metadata["params"].contrast_gain
+            clipped.append(100.0 * np.mean(1.0 + gain * drive <= 0.0))
         rows.append((label, psnrs, ssims, times, steps, clipped))
     peak_mb = tracemalloc.get_traced_memory()[1] / 1e6
     tracemalloc.stop()
@@ -64,7 +69,8 @@ def main() -> None:
     memory = ("not traced" if args.no_memory
               else f"{peak_mb:.0f} MB, and the times include tracing it")
     print(f"peak memory {memory} (the slowest run is the first, which builds the eye;"
-          " steps are the solver's, inf if it did not converge; clipped cells fire at zero)")
+          " steps are the solver's, inf if it did not converge; a clipped signal is past"
+          " the point where one cell around a resting rate stops firing)")
 
 
 if __name__ == "__main__":

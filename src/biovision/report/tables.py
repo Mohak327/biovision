@@ -9,7 +9,7 @@ UNITS = {
     "blur_sigma_deg": "degrees", "spacing_deg": "degrees", "e2_deg": "degrees",
     "center_sigma_deg": "degrees", "surround_sigma_deg": "degrees",
     "cortex_sf_cpd": "cycles/degree", "rest_hz": "spikes/s",
-    "fixation_deg": "degrees",
+    "fixation_deg": "degrees", "spontaneous_hz": "spikes/s",
 }
 
 

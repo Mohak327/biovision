@@ -34,8 +34,14 @@ def test_baselines_for_mouse_and_fly_are_unchanged(sample):
     tolerance went from 1e-4 to 3e-5: the same system, solved more closely.
     Before: mouse 11.999567473 and 14.713525802, fly 13.131761815 and
     13.708582084 (real and ideal). The largest move is +0.042 dB.
+
+    Re-pinned for the mouse when it was given separate ON and OFF cells
+    (phase 6): with real neurons 11.999458055 became 13.556038885, because a
+    pair spends no spikes on a resting rate. With ideal neurons 14.755449525
+    became 14.755447781: the same picture, with the drive now computed as a
+    difference of two rates. The fly keeps one cell and its numbers.
     """
-    expected = {("mouse", True): 11.999458055142469, ("mouse", False): 14.75544952536662,
+    expected = {("mouse", True): 13.556038885487405, ("mouse", False): 14.755447781355695,
                 ("fly", True): 13.133059867104087, ("fly", False): 13.73031381124944}
     for (name, noise), value in expected.items():
         result = run(sample, name, size_px=64, noise=noise)
@@ -132,8 +138,10 @@ def test_mouse_and_fly_keep_one_retinal_cell_per_receptor():
 def test_human_cells_rarely_clip(name):
     image = io.to_square(io.load_sample(name), 96).transpose(2, 0, 1)
     pipeline = species.get("human")(VisualField(96, 60.0))
-    rates = pipeline.encode(image).intermediates["rate"]
-    assert np.mean(rates == 0.0) < 0.001
+    # A signal clips where one cell around a resting rate would stop firing. The
+    # ON/OFF pair loses nothing there, but the gains were chosen under this guard.
+    drive = pipeline.encode(image).intermediates[pipeline.linear_stages[-1].name]
+    assert np.mean(1.0 + human.PARAMS.contrast_gain * drive <= 0.0) < 0.001
 
 
 def test_human_reconstruction_with_real_neurons_is_much_better(sample):

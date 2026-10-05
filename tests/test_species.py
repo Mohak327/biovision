@@ -36,8 +36,9 @@ def test_natural_image_rates_stay_above_zero(name, sample):
     field = VisualField(64, 60.0)
     pipeline = species.get(name)(field)
     image = io.to_square(sample, field.size_px).transpose(2, 0, 1)
-    rates = pipeline.encode(image).intermediates["rate"]
-    assert np.mean(rates == 0.0) < 0.01
+    drive = pipeline.encode(image).intermediates[pipeline.linear_stages[-1].name]
+    gain = pipeline.metadata["params"].contrast_gain
+    assert np.mean(1.0 + gain * drive <= 0.0) < 0.01  # where one cell would stop firing
 
 
 def test_fly_has_no_cortex_and_mammals_do():

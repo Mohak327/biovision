@@ -44,6 +44,13 @@ PARAMS = EyeParams(
     # looks and ideal neurons: 0.25, 0.5, 1 and 2 degrees give 15.14, 15.26, 15.40
     # and 15.44 dB against 14.95 with one look.
     fixation_deg=1.0,
+    # Separate ON and OFF cells. Mouse V1 simple cells have separate ON and OFF
+    # subregions and sum them linearly, then rectify (Niell & Stryker 2008), as
+    # in other mammals; the retina's ganglion cells are ON and OFF types too.
+    # 1 spike/s stands for "nearly silent at rest" and was not checked against
+    # a source. Measured at 128 px, five seeds: 0, 1 and 5 spikes/s give 14.20,
+    # 14.12 and 14.05 dB with real neurons, against 12.89 with one cell.
+    spontaneous_hz=1.0,
 )
 
 

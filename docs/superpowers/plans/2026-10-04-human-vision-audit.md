@@ -1298,3 +1298,179 @@ Donner K (2000). In search of the visual pigment template. Vis Neurosci
 metamerism in natural scenes. J Opt Soc Am A 23:2359-2372. Chakrabarti A,
 Zickler T (2011). Statistics of real-world hyperspectral images. Proc IEEE
 CVPR, 193-200.
+
+
+### Phase 6a and 6c: separate ON and OFF cells (2026-10-05)
+
+**What was built.** `OnOffPair` (`stages/nonlinearity.py`): two rectified
+cells for each signal in place of one cell around a resting rate.
+
+    on  = spontaneous + swing * gain * max(x, 0)
+    off = spontaneous + swing * gain * max(-x, 0)
+
+The rates, and so the spike counts, have a last axis of two (ON, OFF).
+`EyeParams.spontaneous_hz` switches it on: None (the default) is one cell
+around `rest_hz`, as before; a number is the rate of each cell of the pair with
+no signal. It is 1 spike/s for the human and the mouse and None for the fly.
+
+**How the pair is combined, and why the solve is unchanged.** The pointwise
+inverse maps the pair back to one signed drive before the solve:
+`x = (on - off) / (swing * gain)`. The spontaneous rate is in both cells and
+cancels. So the linear stages, the operator `A` and the system the decoder
+solves are exactly what they were; only the right-hand side is computed from
+two counts. The inverse is exact for every `x`, not only above a floor: the
+pair has no signal it clips. It is also linear in the two counts, so noisy
+counts give an unbiased drive.
+
+**The noise variance.** The two cells' spike noise is independent, so the
+drive's variance is `(var(on) + var(off)) / (T * swing * gain)^2`, with each
+count's variance equal to its mean (Poisson). `Decoder.noise_variance` now
+reads the slope of the drive against each cell of a signal from the pointwise
+inverses (one spike in each cell in turn) and adds `mean count * slope^2` over
+the cells. For one cell per signal that is the old formula, and the result is
+the same to the last bit. With one cell the variance was about
+`(1 + gain * x) / (R * T * gain^2)` whatever the signal (R is `rest_hz` times
+the real cells a model cell stands for); with a pair it is
+`(gain * |x| + 2 * spontaneous / R) / (R * T * gain^2)` with the spontaneous
+rate as the model cell's, which is small wherever the signal is small, and
+most signals are. That is the whole gain: the same signal for a fortieth of
+the spikes per cell (human, 128 px: 20.7 spikes a cell against 830), so the
+regularization falls from 2.1e-3 to 2.0e-4.
+
+**The spike budget is unchanged.** One model cell stood for the real cells in
+its patch (82 for the human eye) as ON/OFF pairs around 100 spikes/s, reaching
+200 at `gain * x = 1`. Now half those real cells are ON and half OFF, and each
+uses the whole range, 0 to 200 spikes/s, for its own sign: (82 / 2) x 200 is
+the same swing, so a signal adds the same number of spikes as before and the
+model counts no more real cells. The pair has no ceiling, as the single cell
+had none; a real cell saturates, and that is not modelled.
+
+**Which cells these are.** The rate stage belongs to the eye's output cells.
+For the human and the mouse those are cortical simple cells, which are
+half-wave rectified, nearly silent at rest, and come in pairs of opposite sign
+(Movshon, Thompson & Tolhurst 1978; Niell & Stryker 2008 for the mouse). The
+retina's own ON and OFF ganglion cells (Schiller 1992) are upstream of that,
+inside the linear stages, and are not modelled separately.
+
+**Measurements.** `scripts/benchmark.py`, 60 degrees, mean of the three
+samples, real neurons 100 ms seed 0.
+
+| Eye | | Real PSNR | Real SSIM | Ideal PSNR | Neurons | Steps, real / ideal | Time per run, real / ideal |
+|---|---|---|---|---|---|---|---|
+| Human, 128 px | one cell (before) | 29.97 dB | 0.864 | 40.76 dB | 369,900 | 237 / 558 | 13 s / 20 s |
+| | **ON and OFF, 1 spike/s (now)** | **36.26 dB** | 0.971 | **42.14 dB** | 739,800 | 502 / 560 | 24 s / 22 s |
+| Human, 96 px | one cell (before) | 30.59 dB | 0.904 | 40.13 dB | 245,484 | 245 / 528 | 7 s / 9 s |
+| | **ON and OFF, 1 spike/s (now)** | **37.36 dB** | 0.985 | **41.44 dB** | 490,968 | 465 / 520 | 12 s / 10 s |
+| Mouse, 128 px | one cell (before) | 12.93 dB | 0.285 | 14.95 dB | 9,864 | 11 / 192 | |
+| | **ON and OFF, 1 spike/s (now)** | **14.14 dB** | 0.420 | 14.95 dB | 19,728 | 32 / 193 | |
+
+Per sample at 128 px, human, now: real 34.8 / 37.7 / 36.3 dB, ideal 38.3 /
+47.2 / 40.9 dB.
+
+- **+6.3 dB with real neurons at 128 px and +6.8 at 96**, far above the
+  roadmap's estimate of 1 to 2 dB. The estimate did not count that a cell
+  around a resting rate spends nearly all its spikes saying "no change".
+- **+1.4 dB with ideal neurons**, which was not expected. The likely cause:
+  the single cell clipped 0.029% of signals (0.055% at 96 px) and the decoder
+  read those as smaller than they were, and the pair clips nothing. That
+  cause was not isolated by a measurement.
+- **The real-neuron solve takes twice the steps and the time**: with less
+  noise the regularization is weaker and the system harder.
+- Mouse: +1.2 dB and SSIM from 0.29 to 0.42 with real neurons; with ideal
+  neurons the same picture.
+
+Candidates, from the prototype (same stage, same solve; mouse and fly are the
+mean of seeds 0 to 4):
+
+| Eye, 128 px | Pair | Spontaneous rate | Real PSNR | Real SSIM |
+|---|---|---|---|---|
+| Human | one cell | | 29.97 dB | 0.864 |
+| | as built | 0 | 36.78 dB | 0.976 |
+| | **as built** | **1 spike/s** | **36.26 dB** | 0.971 |
+| | as built | 5 | 35.06 dB | 0.956 |
+| | as built | 20 | 33.19 dB | 0.927 |
+| | suppressed below rest | 5 | 36.17 dB | 0.970 |
+| | suppressed below rest | 20 | 35.62 dB | 0.963 |
+| Mouse | one cell | | 12.89 dB | 0.287 |
+| | as built | 0 / 1 / 5 | 14.20 / 14.12 / 14.05 dB | 0.424 / 0.420 / 0.398 |
+| Fly | one cell (kept) | | 13.75 dB | 0.311 |
+| | as built | 0 / 1 / 20 | 13.99 / 13.99 / 13.99 dB | 0.332 / 0.334 / 0.334 |
+
+"Suppressed below rest" is the other form of the pair,
+`on = max(spontaneous + s, 0)`, in which a decrement lowers the ON cell's
+firing until it stops. It is what a ganglion cell with a maintained discharge
+does, and it is better when the spontaneous rate is high, because both cells
+then carry small signals. It was not built: `on - off` is 2s for small signals
+and `s + spontaneous` beyond, so its inverse has a kink, which is not linear in
+noisy counts, and the variance is no longer one slope. At 1 spike/s the two
+forms should differ by less than the 0.5 dB that separates 0 from 1 spike/s
+(not measured at 1), and no eye here has a higher rate.
+
+**The fly keeps one cell (6c).** The lamina's L1 and L2 cells feed the ON and
+OFF motion pathways (Joesch et al. 2010), but, as far as is recalled here,
+each answers to both signs with a graded potential and neither spikes; the
+rectification comes later, in the medulla, which the model does not have. A
+rectified pair at the lamina measured +0.24 dB and +0.02 SSIM (seed spread
+0.03 dB): small but not nil. It is left off because the cells are not
+rectified, not because the effect is absent. The parameter is there
+(`spontaneous_hz` on `fly.PARAMS`), and the fly's pinned numbers are unchanged.
+
+**ON/OFF asymmetry: not built, not measured.** OFF cells are more numerous and
+have smaller fields than ON cells in the primate retina (Chichilnisky & Kalmar
+2002; Dacey & Petersen 1992). Both facts are about ganglion cells. The pair
+here is cortical, and across 60 degrees every retinal field is already clamped
+to half a pixel, so a smaller OFF field would be the same field. No figure for
+an asymmetry between simple cells of opposite sign was at hand.
+
+**Guards.**
+
+1. With `spontaneous_hz=None` every species is bit-identical: reconstructions,
+   spike counts and the regularization were compared with `np.array_equal`
+   against copies saved before the change (mouse and fly at 64 px, human at 48
+   and 32 px, real and ideal, also with two looks and with photon noise; 36
+   arrays). The fly's pinned values were not edited. The mouse's were, because
+   its default changed: real 11.999458055 to 13.556038885, ideal 14.755449525
+   to 14.755447781 (the same picture; the drive is now a difference of two
+   rates and the solve rounds differently).
+2. The pair's inverse is exact for every signal (a round-trip test over
+   -3 to 3).
+3. The decoder is one linear solve. `decode` was not edited.
+4. Clipping. A pair clips nothing, so "cells at zero" no longer measures
+   anything (half of all cells are silent by design). The benchmark and the
+   tests now count signals past the point where one cell would stop firing,
+   `1 + gain * x <= 0`: the same number as before on the old code (checked on
+   the astronaut at 96 px), and unchanged now, 0.029% at 128 px and 0.055% at
+   96. The gains were not raised, though the pair would let them be: the limit
+   they were chosen under stands for the ceiling a real cell has.
+5. 341 tests pass (332 before; 9 new).
+
+**Deviations from the brief.**
+
+- The spontaneous rate adds to the rectified drive rather than sitting inside
+  the rectifier (above), to keep the inverse linear in the counts.
+- `metrics["neurons"]` counts every spiking cell, so it doubles;
+  `Pipeline.n_neurons` still counts signals (the rows of `A`).
+- The test of the human result at 96 px and the test that a pair decodes like
+  one cell without noise passed when first run, because the code they exercise
+  was already in place. The other seven were watched failing first.
+
+**Not verified.** The spontaneous rate of 1 spike/s: simple cells are
+described as having little or no spontaneous activity, and the number stands
+for that; it was not checked against a source. 256 px. The pair with several
+looks and with photon noise (the bit-identity cases cover the old path only;
+neither was run with a pair). Whether `NOISE_GAIN = 10` is still the best
+regularization now that the noise is ten times smaller. The web app shows the
+spike histogram of twice as many cells, half of them near zero; `web/` was not
+touched.
+
+Sources: Movshon JA, Thompson ID, Tolhurst DJ (1978). Spatial summation in the
+receptive fields of simple cells in the cat's striate cortex. J Physiol
+283:53-77. Schiller PH (1992). The ON and OFF channels of the visual system.
+Trends Neurosci 15:86-92. Gjorgjieva J, Sompolinsky H, Meister M (2014).
+Benefits of pathway splitting in sensory coding. J Neurosci 34:12127-12144.
+Joesch M, Schnell B, Raghu SV, Reiff DF, Borst A (2010). ON and OFF pathways
+in Drosophila motion vision. Nature 468:300-304. Chichilnisky EJ, Kalmar RS
+(2002). Functional asymmetries in ON and OFF ganglion cells of primate retina.
+J Neurosci 22:2737-2747. Dacey DM, Petersen MR (1992). Dendritic field size
+and morphology of midget and parasol ganglion cells of the human retina. PNAS
+89:9666-9670. All cited from memory; none was re-read for this work.

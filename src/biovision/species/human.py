@@ -38,6 +38,12 @@ CITATIONS = (
     "model of ocular chromatic aberration in humans. Appl Opt 31:3594-3600.",
     "Wandell BA. Useful numbers in vision science (a table published with "
     "Foundations of Vision, Sinauer 1995).",
+    "Movshon JA, Thompson ID, Tolhurst DJ (1978). Spatial summation in the receptive "
+    "fields of simple cells in the cat's striate cortex. J Physiol 283:53-77.",
+    "Schiller PH (1992). The ON and OFF channels of the visual system. Trends "
+    "Neurosci 15:86-92.",
+    "Gjorgjieva J, Sompolinsky H, Meister M (2014). Benefits of pathway splitting in "
+    "sensory coding. J Neurosci 34:12127-12144.",
 )
 
 # L cones for each M cone. Two is near the average; among people with normal
@@ -116,6 +122,17 @@ PARAMS = EyeParams(
     # The centre of the fovea has no S cones: a zone about 100 micrometres, or
     # 0.35 degrees, across (Curcio et al. 1991). The radius, for each cone type.
     absent_within_deg=(0.0, 0.0, 0.175),
+    # Separate ON and OFF cells. The retina sends increments and decrements
+    # through different cells (Schiller 1992), and a cortical simple cell is
+    # half-wave rectified: it fires for one sign of its drive and is nearly
+    # silent otherwise (Movshon, Thompson & Tolhurst 1978), with a partner of
+    # the opposite sign. A pair carries the same signal with far fewer spikes
+    # than one cell around a resting rate (Gjorgjieva, Sompolinsky & Meister
+    # 2014). 1 spike/s is "little or no spontaneous activity" as a number: it
+    # is quoted from memory of the simple-cell literature and was not checked
+    # against a source. Measured at 128 px: 0, 1 and 5 spikes/s give 36.8, 36.3
+    # and 35.1 dB with real neurons, against 30.0 with one cell.
+    spontaneous_hz=1.0,
     # `jitter` is left at 0. Real cones are not on a perfect lattice (Hirsch &
     # Miller 1987), but no figure for the disorder could be checked for this
     # work. Measured at 0.1 and 0.2 of the spacing across 1 degree: no change.

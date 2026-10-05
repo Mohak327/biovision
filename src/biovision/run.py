@@ -153,7 +153,6 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
     original = io.to_square(image, size_px)
     pipeline = build_pipeline(species_name, size_px, float(fov_deg), float(density),
                               float(neuron_density))
-    eye = pipeline
     look_s = window_ms / 1000.0 / looks
     if photons_per_s is not None:
         pipeline = lit(pipeline, photons_per_s, look_s)
@@ -181,12 +180,13 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
     decoder = Decoder(pipeline, lam, chroma_weight)
     reconstruction = decoder.decode(code, on_iteration)
     reconstructed = reconstruction.image.transpose(1, 2, 0)
+    neurons = code.responses.size // looks  # every cell that spikes: both cells of an ON/OFF pair
     metrics = {
         "psnr_db": psnr(original, reconstructed),
         "ssim": ssim(original, reconstructed),
-        "neurons": float(eye.n_neurons),
+        "neurons": float(neurons),
         "receptors": float(len(pipeline.metadata["mosaic"])),
-        "compression_ratio": eye.n_neurons / original.size,
+        "compression_ratio": neurons / original.size,
         "mean_spikes": float(np.mean(code.responses)) * looks,  # over the whole window
     }
     settings = Settings(species_name, float(fov_deg), size_px, float(window_ms),

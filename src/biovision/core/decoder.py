@@ -148,10 +148,20 @@ class Decoder:
         """Mean variance of the linear drive, assuming Poisson spike counts.
 
         A Poisson count has variance equal to its mean. The pointwise inverses
-        are affine, so they scale that variance by their combined slope squared.
+        are affine, so each count's variance reaches the drive scaled by the
+        square of the drive's slope against that count. Where several cells
+        carry one signal (an ON and an OFF cell, on the code's last axis),
+        their noise is independent and the scaled variances add.
         """
-        slope = float(np.diff(self.linear_drive(np.array([0.0, 1.0])))[0])
-        return float(np.mean(code.responses)) * slope**2
+        signals = self.pipeline.out_shape
+        cells = code.responses.shape[len(signals):]  # the cells that carry one signal
+        n_cells = int(np.prod(cells))
+        probes = np.vstack([np.zeros(n_cells), np.eye(n_cells)]).reshape(n_cells + 1, *cells)
+        drive = self.linear_drive(probes)  # with no spikes, then with one spike in each cell
+        slopes = drive[1:] - drive[0]
+        counts = np.moveaxis(code.responses.reshape(*signals, n_cells), -1, 0)
+        return float(sum(float(np.mean(count)) * slope**2
+                         for count, slope in zip(counts, slopes)))
 
     def decode(self, code: NeuralCode, on_iteration=None) -> Reconstruction:
         """Reconstruct the image. If given, `on_iteration(k, image)` receives the

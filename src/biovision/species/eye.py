@@ -10,7 +10,7 @@ from ..stages.gabor import gabor_bank
 from ..stages.movement import EyeShifts, PerLook, look_offsets
 from ..stages.mosaic import (Mosaic, all_types_at, assign_types, foveated_lattice,
                              hex_lattice, mosaic_sampling, retype_inside, square_lattice)
-from ..stages.nonlinearity import LinearRectified
+from ..stages.nonlinearity import LinearRectified, OnOffPair
 from ..stages.optics import OpticalBlur, defocus_sigma_deg
 from ..stages.photons import PhotonCatch
 from ..stages.receptive import RetinaClass, center_surround, opponent_retina
@@ -37,7 +37,11 @@ class EyeParams:
     surround_weight: float
     e2_deg: float = 0.0  # eccentricity at which spacing doubles ("foveated" only)
     cortex_sf_cpd: tuple[float, ...] = ()  # preferred spatial frequencies; empty = no cortex
-    rest_hz: float = 100.0  # firing rate with no signal
+    # Firing rate with no signal, of a cell that stands for an ON/OFF pair. With
+    # separate ON and OFF cells, half the top of the range: the pair shares the
+    # real cells, and each fires 2 * rest_hz above its spontaneous rate when
+    # contrast_gain * signal reaches 1, where the one cell did.
+    rest_hz: float = 100.0
     contrast_gain: float = 2.5  # scales responses to span the firing range
     mosaic_seed: int = 0
     # Retinal cell classes that combine receptor types; empty = one cell per receptor.
@@ -65,6 +69,9 @@ class EyeParams:
     # How far receptors sit from a perfect lattice: the standard deviation of each
     # one's displacement, as a fraction of the local spacing. 0 = a perfect lattice.
     jitter: float = 0.0
+    # Separate ON and OFF cells: the rate, in spikes/s, at which each fires with
+    # no signal. None = one cell around `rest_hz` stands for the pair.
+    spontaneous_hz: float | None = None
 
 
 def local_spacing_px(params: EyeParams, field: VisualField, positions: np.ndarray,
@@ -245,10 +252,14 @@ def assemble(name: str, field: VisualField, params: EyeParams,
                                      density=neuron_density, gains=gains, types=types))
     # One model cell stands for several real cells, and their spikes add.
     real_cells = cells_per_neuron(params, field, mosaic, cells_per_position)
-    stages += [
-        LinearRectified(params.rest_hz * real_cells, params.contrast_gain),
-        PoissonSpikes(DEFAULT_WINDOW_S),
-    ]
+    if params.spontaneous_hz is None:
+        rate = LinearRectified(params.rest_hz * real_cells, params.contrast_gain)
+    else:
+        # Half the real cells are ON and half OFF, and a cell's range is twice its
+        # resting rate: (real_cells / 2) * (2 * rest_hz) is the same swing.
+        rate = OnOffPair(params.rest_hz * real_cells, params.contrast_gain,
+                         params.spontaneous_hz * real_cells / 2.0)
+    stages += [rate, PoissonSpikes(DEFAULT_WINDOW_S)]
     return Pipeline(name, field, tuple(stages), description, citations,
                     {"params": params, "mosaic": mosaic, "cells": cells,
                      "cells_per_position": cells_per_position,
