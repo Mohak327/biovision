@@ -32,7 +32,7 @@ def main() -> None:
         tracemalloc.start()
     rows = []
     for label, noise in (("real, 100 ms", True), ("ideal", False)):
-        psnrs, ssims, times = [], [], []
+        psnrs, ssims, times, steps, clipped = [], [], [], [], []
         for name in names:
             start = time.perf_counter()
             result = run(io.load_sample(name), args.species, fov_deg=FOV_DEG,
@@ -40,21 +40,26 @@ def main() -> None:
             times.append(time.perf_counter() - start)
             psnrs.append(result.metrics["psnr_db"])
             ssims.append(result.metrics["ssim"])
-        rows.append((label, psnrs, ssims, times))
+            solve = result.reconstruction
+            steps.append(solve.iterations if solve.converged else float("inf"))
+            clipped.append(100.0 * np.mean(result.code.intermediates["rate"] == 0.0))
+        rows.append((label, psnrs, ssims, times, steps, clipped))
     peak_mb = tracemalloc.get_traced_memory()[1] / 1e6
     tracemalloc.stop()
 
     print(f"{args.species}, {args.size} px, {FOV_DEG:g} degrees, "
           f"{int(result.metrics['neurons'])} neurons")
     print(f"{'neurons':<14}{'mean PSNR':>10}{'mean SSIM':>11}{'s per run':>11}{'slowest':>9}"
-          f"   PSNR per sample ({' / '.join(names)})")
-    for label, psnrs, ssims, times in rows:
+          f"{'most steps':>12}{'most clipped':>14}   PSNR per sample ({' / '.join(names)})")
+    for label, psnrs, ssims, times, steps, clipped in rows:
         each = " / ".join(f"{value:.1f}" for value in psnrs)
         print(f"{label:<14}{np.mean(psnrs):>8.2f} dB{np.mean(ssims):>11.3f}"
-              f"{np.mean(times):>11.1f}{max(times):>9.1f}   {each}")
+              f"{np.mean(times):>11.1f}{max(times):>9.1f}{max(steps):>12.0f}"
+              f"{max(clipped):>13.3f}%   {each}")
     memory = ("not traced" if args.no_memory
               else f"{peak_mb:.0f} MB, and the times include tracing it")
-    print(f"peak memory {memory} (the slowest run is the first, which builds the eye)")
+    print(f"peak memory {memory} (the slowest run is the first, which builds the eye;"
+          " steps are the solver's, inf if it did not converge; clipped cells fire at zero)")
 
 
 if __name__ == "__main__":
