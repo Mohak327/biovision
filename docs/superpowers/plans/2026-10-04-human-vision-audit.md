@@ -2,8 +2,9 @@
 
 2026-10-04. An audit of what the human model computes against what the human
 eye and early cortex compute, the additions worth making, their measured
-gains, and the plan to build them. Phases 1, 2 and 3 are implemented; see "Phase 1
-result" and "Phase results" below. The later phases are not.
+gains, and the plan to build them. Phases 1, 2, 3, 9, 10 and 13 are implemented;
+phases 5 and 12 were examined and not built. See "Phase 1 result" and "Phase
+results" below. The other phases are not started.
 
 ## The problem
 
@@ -1230,3 +1231,70 @@ Neurol 312:610-624. Hofer H, Carroll J, Neitz J, Neitz M, Williams DR (2005).
 Organization of the human trichromatic cone mosaic. J Neurosci 25:9669-9679.
 Hirsch J, Miller WH (1987). Does cone positional disorder limit resolution?
 J Opt Soc Am A 4:1481-1492.
+
+
+### Phase 12: real spectra (2026-10-05)
+
+**Outcome: not built; this section records what it would take.** A receptor
+responds to wavelengths. A picture file holds three numbers per pixel, which
+are already one particular eye's summary of the spectrum (a camera's, tuned
+to look right to a human on a display). The spectrum itself is gone, and no
+code can bring it back. The project has no hyperspectral pictures, so nothing
+was built.
+
+**What the model does today.** `ColorProjection` is a fixed matrix from the
+three numbers to the receptor types. For the human eye that is close to
+right: sRGB primaries were chosen for human cones, and the matrix (Vienot et
+al. 1999) is the standard conversion. For the mouse and the fly it is an
+approximation the README already states: ultraviolet is read from the blue
+channel, which a display does not emit and a camera does not record.
+
+**What would be needed.**
+
+1. *Hyperspectral pictures*: for each pixel the radiance in, say, 31 bands
+   from 400 to 700 nm for the human eye, and from 300 nm for the mouse and the
+   fly, whose ultraviolet receptors peak near 360 nm. Public sets exist for
+   the visible range (for example Foster et al. 2006, Chakrabarti & Zickler
+   2011); sets that reach into the ultraviolet are rare and small. None is
+   bundled, and none was downloaded or checked for this work.
+2. *Each receptor type's sensitivity at each band*: published tables (for the
+   human eye, the Stockman & Sharpe 2000 cone fundamentals; templates for
+   opsins of known peak, Govardovskii et al. 2000), with the lens and macular
+   pigment of phase 9 as wavelength-by-wavelength filters in place of one
+   number per type.
+3. *In the code*: `ColorProjection` already takes any (types x channels)
+   matrix in its arithmetic, but it insists on three input channels, and so do
+   `io`, `run()`, the decoder's priors, the metrics, the figures and the web
+   app. The stage would become (types x bands); the rest is the larger job.
+
+**What it would change.**
+
+- *The encoding becomes exact for every species*, and the mouse and the fly
+  gain a real ultraviolet channel in place of a copy of blue. That is the main
+  gain, and it is one of fidelity, not of score.
+- *Chromatic aberration per band*, not per cone type (phase 9 uses one defocus
+  per cone type as an approximation), and photon counts per band (phase 10).
+- *The reconstruction target has to be chosen.* The decoder cannot rebuild 31
+  bands from 3 receptor types: all the spectra that give the same three cone
+  signals (metamers) look alike to the eye and to the decoder. The honest
+  targets are the receptor signals themselves, or an RGB rendering of the
+  scene, with the prior doing what it does today. For the human eye the
+  result would then differ from today's only by how far real spectra depart
+  from what the three sRGB numbers imply, which is small for most natural
+  surfaces. No number is given because none was measured.
+- *The exact inverse is kept.* The projection stays linear, so nothing in the
+  decoder changes in kind.
+
+**Decision.** Deferred until there are pictures to run it on. It keeps its
+place in the roadmap as a fidelity item with a small expected effect on the
+human result and a real one on what the mouse and fly models mean.
+
+Sources (cited from memory, not re-read for this work): Stockman A, Sharpe LT
+(2000). The spectral sensitivities of the middle- and long-wavelength-
+sensitive cones derived from measurements in observers of known genotype.
+Vision Res 40:1711-1737. Govardovskii VI, Fyhrquist N, Reuter T, Kuzmin DG,
+Donner K (2000). In search of the visual pigment template. Vis Neurosci
+17:509-528. Foster DH, Amano K, Nascimento SMC, Foster MJ (2006). Frequency of
+metamerism in natural scenes. J Opt Soc Am A 23:2359-2372. Chakrabarti A,
+Zickler T (2011). Statistics of real-world hyperspectral images. Proc IEEE
+CVPR, 193-200.
