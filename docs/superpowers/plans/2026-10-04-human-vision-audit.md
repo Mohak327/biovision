@@ -844,3 +844,109 @@ an analysis based on extracellular data. Vision Res 23:1539-1547. Boynton RM,
 Whitten DN (1970). Visual adaptation in monkey cones: recordings of late
 receptor potentials. Science 170:1423-1426. Both exponents are quoted from
 memory of those papers and were not re-read for this work.
+
+
+### Phase 9: real optics (2026-10-05)
+
+Three effects were asked for. One was built and is on by default (chromatic
+aberration), one was measured and moved to phase 10 in another form (lens and
+macular pigment), and the third is the parameter that ties them (pupil size).
+
+**(a) Chromatic aberration: built, on for the human eye.**
+
+- `OpticalBlur` (`stages/optics.py`) takes one sigma, or one per channel. One
+  sigma gives the stage as it was, bit for bit. The transfer function is still
+  real and even, so the stage is its own exact adjoint; a per-channel blur is in
+  the generic adjoint tests.
+- `defocus_sigma_deg(pupil_mm, defocus_d)`: light out of focus by D dioptres
+  through a pupil of diameter p is spread over a circle of angular diameter
+  p x D (geometric optics); the Gaussian with the same standard deviation, a
+  quarter of that diameter, stands in for the disc.
+- `EyeParams.chromatic_defocus_d` (dioptres out of focus, one per receptor
+  type; empty = one blur for all) and `EyeParams.pupil_mm`. `blur_sigmas_deg`
+  in `species/eye.py` adds the variances of the in-focus blur and the defocus
+  blur.
+- Human: 0.05, 0.06 and 0.95 dioptres for L, M and S, pupil 3 mm. From the
+  chromatic eye of Thibos et al. (1992), refraction in dioptres relative to
+  589 nm = 1.68524 - 0.63346 / (wavelength in micrometres - 0.21410), with
+  555 nm in focus and cone peaks near 565, 545 and 440 nm. The blur sigmas are
+  0.0074, 0.0075 and 0.041 degrees (0.44, 0.45 and 2.5 arcminutes): the S cones
+  see a picture nearly six times as blurred.
+- Mouse and fly: unchanged, and held so by a test. No published defocus per
+  receptor type was at hand for either; the mouse's blur (0.3 degrees) and the
+  fly's (2.1 degrees) are in any case far wider than a chromatic term would be.
+
+**Measurements.** Mean of the three samples; real neurons 100 ms, seed 0.
+
+| Eye | Chromatic aberration | Real PSNR | Real SSIM | Ideal PSNR | Clipped | Steps, real / ideal |
+|---|---|---|---|---|---|---|
+| Human, 128 px, 60 degrees | off (before) | 30.00 dB | 0.866 | 40.74 dB | 0.029% | 236 / 515 |
+| | **on, pupil 3 mm (now)** | **29.97 dB** | 0.864 | **40.76 dB** | 0.029% | 237 / 558 |
+| | on, pupil 6 mm (prototype) | 29.92 dB | 0.863 | 40.76 dB | 0.029% | 237 / 563 |
+| Human, 96 px, 60 degrees | off (before) | 30.63 dB | 0.906 | 40.11 dB | 0.055% | 242 / 519 |
+| | **on, pupil 3 mm (now)** | **30.59 dB** | 0.904 | **40.13 dB** | 0.055% | 245 / 528 |
+| Human, 128 px, 2 degrees, whole eye | off | 20.22 dB | 0.498 | 20.37 dB | 0.200% | 211 / 231 |
+| | on, pupil 2 mm | 20.19 dB | 0.499 | 20.34 dB | 0.200% | 209 / 232 |
+| | on, pupil 3 mm | 20.18 dB | 0.499 | 20.31 dB | 0.200% | 219 / 242 |
+| | on, pupil 6 mm | 20.06 dB | 0.493 | 20.18 dB | 0.250% | 257 / 293 |
+| Human, 128 px, 2 degrees, retina only | off | 20.42 dB | 0.478 | 23.65 dB | 1.63% | 57 / 348 |
+| | on, pupil 2 mm | 20.39 dB | 0.484 | 23.55 dB | 1.70% | 64 / 399 |
+| | on, pupil 3 mm | 20.37 dB | 0.486 | 23.14 dB | 1.85% | 70 / 465 |
+| | on, pupil 6 mm | 20.24 dB | 0.492 | 17.52 dB | 3.14% | 83 / 790 |
+
+Across 60 degrees a pixel is 0.47 degrees and the S cones' blur is 0.09 of a
+pixel, so nothing changes beyond the seed's own spread (-0.03 and -0.04 dB
+real, +0.02 ideal). The first prototype used the unrounded defocus values and
+came out at +0.03 dB real: the sign of a difference this small is noise. By
+the roadmap's rule (a loss under 0.5 dB) it is on by default. Mouse and fly
+are bit-identical; the pinned test was not edited.
+
+Across 2 degrees a pixel is 0.94 arcminutes and the effect can show. With
+the whole eye it still barely does (-0.04 dB): there the picture is limited by
+the cortex, which has 3,995 cells because only the 3.2 cycles/degree scale
+fits a 2 degree picture. Stopping at the retina (`cortex_sf_cpd=()`, 48,384
+cells) shows the optics: -0.5 dB with ideal neurons at 3 mm, and -6 dB at
+6 mm, where the blue-yellow cells clip (3.1%) because their S input is now
+smooth while their L and M input is sharp. The narrow-field eye is not healthy
+to begin with (1.6% of retinal cells clip before any change; the gains were
+chosen at 60 degrees), so these narrow-field numbers show the direction and
+rough size of the effect, not a calibrated result.
+
+**(b) Lens and macular pigment: not built as a linear attenuation.** The
+brief's form, a transmission factor on the short-wavelength channel in the
+optics stage, was measured: S x 0.5 gives 28.15 dB real and 39.16 dB ideal at
+128 px (-1.85 and -1.6 dB), with clipping up from 0.029% to 0.038%. It was
+rejected because it counts the pigments twice and models a cone that does not
+adapt. The colour matrix (Vienot et al. 1999) is built from cone sensitivities
+measured at the cornea, so the pigments' effect on which wavelengths each cone
+sees is already in it; and its rows are scaled to sum to 1, which is each cone
+type adapting its gain to the light it gets. Scaling S again unbalances the
+blue-yellow cells, which then answer to plain grey. What the pigments do cost
+a real eye, once the cone has adapted, is photons: the S cones catch fewer, so
+their signal is noisier in dim light. That belongs with photon noise and is
+built there (phase 10, `EyeParams.transmission`).
+
+**(c) Pupil size.** `EyeParams.pupil_mm` scales the chromatic blur (above:
+2, 3 and 6 mm). It also sets how much light reaches the retina (retinal
+illuminance in trolands is luminance times pupil area); phase 10 uses that in
+the conversion from luminance to photons. The in-focus blur `blur_sigma_deg`
+was left as one number: in a real eye it also changes with the pupil
+(diffraction below about 2.5 mm, aberrations above), and that was not modelled.
+
+**Guards.** 294 tests pass (284 before; 10 new). Clipping at 96 and 128 px is
+unchanged (0.055% and 0.029%). Adjoint: the per-channel blur is in the generic
+tests at relative 1e-10, and the human pipeline's composed operator is held to
+1e-9 as before.
+
+**Not verified.** The constants of the Thibos formula are quoted from memory
+of the paper, not re-read; they give 2.1 dioptres between 400 and 700 nm,
+which agrees with the published total of about 2. The wavelength in focus
+(555 nm) and the single defocus per cone type are assumptions: each cone's
+signal from an RGB picture spans a broad band, and the true blur is a mixture.
+Transverse chromatic aberration, diffraction, and the eye's other aberrations
+were not modelled. 256 px was not run.
+
+Sources: Thibos LN, Ye M, Zhang X, Bradley A (1992). The chromatic eye: a new
+reduced-eye model of ocular chromatic aberration in humans. Appl Opt
+31:3594-3600. Wandell BA, Useful numbers in vision science (axial chromatic
+aberration 2 dioptres over the visible spectrum; pupil 2 to 8 mm).

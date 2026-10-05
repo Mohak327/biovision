@@ -11,7 +11,7 @@ from ..stages.movement import EyeShifts, PerLook, look_offsets
 from ..stages.mosaic import (Mosaic, all_types_at, assign_types, foveated_lattice,
                              hex_lattice, mosaic_sampling, square_lattice)
 from ..stages.nonlinearity import LinearRectified
-from ..stages.optics import OpticalBlur
+from ..stages.optics import OpticalBlur, defocus_sigma_deg
 from ..stages.receptive import RetinaClass, center_surround, opponent_retina
 from ..stages.spiking import PoissonSpikes
 
@@ -48,6 +48,11 @@ class EyeParams:
     # How far the gaze strays from its mean position while the eye fixates: the
     # radius of the disc that several looks are spread over. 0 = an eye held still.
     fixation_deg: float = 0.0
+    # Chromatic aberration: how far out of focus each receptor type's light is, in
+    # dioptres, and the pupil's diameter in millimetres, which sets how much blur
+    # that defocus makes. Empty = every receptor type sees the same blur.
+    chromatic_defocus_d: tuple[float, ...] = ()
+    pupil_mm: float = 0.0
 
 
 def build_mosaic(params: EyeParams, field: VisualField,
@@ -120,6 +125,21 @@ def cells_per_neuron(params: EyeParams, field: VisualField, mosaic: Mosaic,
     return max(receptors * (params.spike_patch_deg / field.fov_deg) ** 2, 1.0)
 
 
+def blur_sigmas_deg(params: EyeParams):
+    """The optical blur each receptor type sees: one sigma, or one per type.
+
+    `blur_sigma_deg` is the blur of light in focus. Light a receptor type sees
+    out of focus is blurred further, and the two blurs' variances add.
+    """
+    if not params.chromatic_defocus_d:
+        return params.blur_sigma_deg
+    if len(params.chromatic_defocus_d) != len(params.receptor_names):
+        raise ValueError("chromatic_defocus_d needs one value per receptor type")
+    return tuple(float(np.hypot(params.blur_sigma_deg,
+                                defocus_sigma_deg(params.pupil_mm, defocus)))
+                 for defocus in params.chromatic_defocus_d)
+
+
 def assemble(name: str, field: VisualField, params: EyeParams,
              description: str, citations: tuple[str, ...], density: float = 1.0,
              neuron_density: float = 1.0) -> Pipeline:
@@ -146,7 +166,7 @@ def assemble(name: str, field: VisualField, params: EyeParams,
         cells = mosaic
     stages = [
         ColorProjection(params.color_matrix, size),
-        OpticalBlur(field.to_px(params.blur_sigma_deg), n_types, size),
+        OpticalBlur(field.to_px(np.asarray(blur_sigmas_deg(params))), n_types, size),
         mosaic_sampling(mosaic, size),
         retina,
     ]

@@ -14,6 +14,7 @@ def linear_stages():
     return [
         ColorProjection([[0.2, 0.7, 0.1], [0.0, 0.1, 0.9]], SIZE),
         OpticalBlur(1.5, 2, SIZE),
+        OpticalBlur([0.4, 2.5], 2, SIZE, name="optics_per_channel"),
         EyeShifts([(0.3, -1.7), (2.0, 0.5), (-0.25, 0.0)], 2, SIZE),
         PerLook(OpticalBlur(1.5, 2, SIZE), 3),
     ]

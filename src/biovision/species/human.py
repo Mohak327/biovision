@@ -32,6 +32,10 @@ CITATIONS = (
     "and blue-yellow chromatic gratings. J Physiol 359:381-400.",
     "Rucci M, Poletti M (2015). Control and functions of fixational eye movements. "
     "Annu Rev Vis Sci 1:499-518.",
+    "Thibos LN, Ye M, Zhang X, Bradley A (1992). The chromatic eye: a new reduced-eye "
+    "model of ocular chromatic aberration in humans. Appl Opt 31:3594-3600.",
+    "Wandell BA. Useful numbers in vision science (a table published with "
+    "Foundations of Vision, Sinauer 1995).",
 )
 
 PARAMS = EyeParams(
@@ -77,6 +81,20 @@ PARAMS = EyeParams(
     # four looks: 0.1, 0.25 and 0.5 degrees give 31.0, 31.7 and 32.2 dB with
     # real neurons against 30.6 with one look.
     fixation_deg=0.25,
+    # The eye cannot focus every wavelength at once: its power changes by about
+    # 2 dioptres across the visible spectrum. The chromatic eye of Thibos et al.
+    # (1992) gives the refraction, in dioptres relative to 589 nm, as
+    # 1.68524 - 0.63346 / (wavelength in micrometres - 0.21410). With 555 nm in
+    # focus (the peak of daylight sensitivity; an assumption), the cones' peak
+    # wavelengths of about 565, 545 and 440 nm are 0.05, 0.06 and 0.95 dioptres
+    # out. A cone's signal from an RGB picture spans many wavelengths, so one
+    # defocus per cone type is a first approximation. The formula's constants
+    # are quoted from memory of the paper; they give 2.1 dioptres from 400 to
+    # 700 nm, which agrees with the published total.
+    chromatic_defocus_d=(0.05, 0.06, 0.95),
+    # Pupil diameter in daylight; it ranges from 2 mm in bright light to 8 mm in
+    # the dark (Wandell's table of useful numbers). 3 mm blurs the S cones' light by 2.4 arcminutes.
+    pupil_mm=3.0,
 )
 
 
