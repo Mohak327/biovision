@@ -32,8 +32,8 @@ export const FOV_PRESETS: Preset[] = [
 export const SIZE_PRESETS: Preset[] = [
   { value: 96, label: "96 px", hint: "96 pixels across; the quickest" },
   { value: 128, label: "128 px", hint: "128 pixels across" },
-  { value: 256, label: "256 px", hint: "256 pixels across; slow, and the human eye needs about 5 GB of memory" },
-  { value: 512, label: "512 px", hint: "512 pixels across; fly and mouse take up to a minute, the human eye needs far more memory than most machines have" },
+  { value: 256, label: "256 px", hint: "256 pixels across; the human eye takes a minute or two and about 1.3 GB of memory" },
+  { value: 512, label: "512 px", hint: "512 pixels across; fly and mouse only for now. The human eye needs over 3 GB and its solve does not yet settle" },
 ];
 
 export const DEFAULT_SETTINGS: Settings = {
