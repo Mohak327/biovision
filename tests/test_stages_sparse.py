@@ -28,6 +28,8 @@ def pooled_stages():
             center_surround(dense, 1.0, 4.0, 0.7, name="pooled_center_surround"),
             opponent_retina(dense, classes, 1.0, 4.0, name="pooled_opponent_retina")[0],
             gabor_bank(dense, 2 * SIZE, [16.0, 4.0], name="pooled_gabor"),
+            gabor_bank(dense, 2 * SIZE, [16.0, 4.0], types=[None, (1,)],
+                       name="pooled_gabor_fewer_types"),
         ]
     finally:
         pyramid.DIRECT_LIMIT = limit
@@ -39,6 +41,7 @@ def linear_stages():
         mosaic_sampling(mosaic, SIZE),
         center_surround(mosaic, 1.0, 3.0, 0.7),
         gabor_bank(mosaic, SIZE, [8.0, 4.0]),
+        gabor_bank(mosaic, SIZE, [8.0, 4.0], types=[None, (0,)], name="gabor_fewer_types"),
     ] + pooled_stages()
 
 
@@ -153,3 +156,21 @@ def test_gabor_bank_density_multiplies_the_cell_count(rng):
     assert np.vdot(dense.forward(x), y) == pytest.approx(np.vdot(x, dense.adjoint(y)), rel=1e-10)
     with pytest.raises(ValueError, match="density must be positive"):
         gabor_bank(mosaic, SIZE, [8.0], density=0.0)
+
+
+def test_gabor_bank_gives_a_scale_only_the_types_asked_for(rng):
+    mosaic = all_types_at(square_lattice(SIZE, 1.0), 3)
+    coarse = gabor_bank(mosaic, SIZE, [8.0]).out_shape[0]
+    fine = gabor_bank(mosaic, SIZE, [4.0]).out_shape[0] * 8 // 9  # alone it also has the mean cells
+    stage = gabor_bank(mosaic, SIZE, [8.0, 4.0], types=[None, (0,)])
+    assert stage.out_shape == (coarse + fine // 3,)
+    # The fine cells are of type 0 alone, so they ignore the other types' receptors.
+    others = rng.standard_normal(len(mosaic)) * (mosaic.types != 0)
+    np.testing.assert_allclose(stage.forward(others)[coarse:], 0.0, atol=1e-12)
+    assert np.any(stage.forward(others)[:coarse] != 0.0)
+    # Each of the 8 orientation-and-phase blocks keeps its type-0 cells, which come first.
+    x = rng.standard_normal(len(mosaic))
+    every = gabor_bank(mosaic, SIZE, [8.0, 4.0]).forward(x)[coarse:].reshape(8, 3, -1)
+    np.testing.assert_allclose(stage.forward(x)[coarse:].reshape(8, -1), every[:, 0], atol=1e-12)
+    with pytest.raises(ValueError, match="one set of types per wavelength"):
+        gabor_bank(mosaic, SIZE, [8.0, 4.0], types=[None])
