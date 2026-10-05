@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.sparse import csr_matrix, identity, kron
+from scipy.sparse import csr_matrix, diags, identity, kron
 
 from ..core.stage import LinearStage
 from .mosaic import Mosaic, all_types_at
@@ -16,12 +16,24 @@ def smooth(out: Mosaic, mosaic: Mosaic, sigma_px: float) -> list[csr_matrix]:
     One direct matrix where that is affordable. Otherwise the receptors are
     first pooled onto a coarse layer and the cell pools from that; the two
     Gaussians' variances add up to `sigma_px` squared.
+
+    Where a type has no receptors, the coarse cells there are empty. A cell
+    that pools from some of those would get less than a mean, so its weights
+    are scaled back up to sum to 1 over the receptors it does reach.
     """
     spacing = sigma_px / np.sqrt(1.0 + POOL_SIGMA_RATIO**2)
     source, head = summarize(out.positions, mosaic, 3.0 * sigma_px, spacing)
     width = spacing if head else sigma_px
-    return head + [normalize_rows(pool(out.positions, out.types, source.positions, source.types,
-                                       3.0 * width, lambda dy, dx: gaussian(dy, dx, width)))]
+    last = normalize_rows(pool(out.positions, out.types, source.positions, source.types,
+                               3.0 * width, lambda dy, dx: gaussian(dy, dx, width)))
+    if head:
+        total = np.ones(len(mosaic))
+        for matrix in head + [last]:
+            total = matrix @ total
+        if np.any(total < 1.0 - 1e-9):  # only then, so an eye without gaps is left as it was
+            scale = np.divide(1.0, total, out=np.zeros_like(total), where=total > 0)
+            last = (diags(scale) @ last).tocsr()
+    return head + [last]
 
 
 def center_surround(mosaic: Mosaic, sigma_center_px: float, sigma_surround_px: float,
@@ -63,6 +75,10 @@ def opponent_retina(mosaic: Mosaic, classes, sigma_center_px: float, sigma_surro
     around every position; a class adds those pools with its weights. The
     response is gain * (centre - surround_weight * surround).
 
+    A cell whose centre reaches no receptor of a type its class weights is
+    silent: with one of its inputs missing it has nothing to compare (a
+    blue-yellow cell where there are no S cones).
+
     Returns the stage and the mosaic of the cells it made (their positions,
     with the class index as the type), which later stages pool from.
     """
@@ -89,6 +105,14 @@ def opponent_retina(mosaic: Mosaic, classes, sigma_center_px: float, sigma_surro
 
     mix_centre = mix(lambda item: item.gain)
     mix_surround = mix(lambda item: -item.gain * item.surround_weight)
+    reached = np.ones(len(mosaic))
+    for matrix in centre:
+        reached = matrix @ reached  # 1 for a pool that found receptors, 0 for an empty one
+    reached = reached.reshape(mosaic.n_types, len(positions)) > 0
+    if not reached.all():
+        complete = diags(np.concatenate([reached[np.flatnonzero(item.weights)].all(axis=0)
+                                         for item in classes]).astype(float))
+        mix_centre, mix_surround = complete @ mix_centre, complete @ mix_surround
     cells = Mosaic(np.tile(positions, (len(classes), 1)),
                    np.repeat(np.arange(len(classes)), len(positions)), len(classes))
     shapes = (len(mosaic),), (len(cells),)

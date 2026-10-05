@@ -77,6 +77,29 @@ def assign_types(n: int, fractions, rng: np.random.Generator) -> np.ndarray:
     return rng.choice(len(fractions), size=n, p=fractions / fractions.sum())
 
 
+def retype_inside(types: np.ndarray, eccentricity: np.ndarray, absent_within,
+                  fractions, rng: np.random.Generator) -> np.ndarray:
+    """Receptor types with none of a type closer to the centre than its radius.
+
+    `absent_within` gives one radius per type, in the units of `eccentricity`
+    (0 = found everywhere). A receptor of a type that does not occur where it
+    sits is drawn again from the types that do occur there, in their own
+    proportions.
+    """
+    absent_within = np.asarray(absent_within, dtype=float)
+    fractions = np.asarray(fractions, dtype=float)
+    types = types.copy()
+    for kind in np.argsort(-absent_within):  # the widest zone first
+        wrong = (types == kind) & (eccentricity < absent_within[kind])
+        if wrong.any():
+            # Types whose own zone is no wider occur wherever this one is redrawn,
+            # or are redrawn in their turn.
+            allowed = fractions * (absent_within <= absent_within[kind])
+            allowed[kind] = 0.0
+            types[wrong] = assign_types(int(wrong.sum()), allowed, rng)
+    return types
+
+
 def all_types_at(positions: np.ndarray, n_types: int) -> Mosaic:
     """A mosaic with one receptor of every type at each position."""
     return Mosaic(np.tile(positions, (n_types, 1)),

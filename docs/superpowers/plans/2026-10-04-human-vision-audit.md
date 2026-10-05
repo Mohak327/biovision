@@ -1111,3 +1111,122 @@ Sources: Psychtoolbox-3, `ComputePhotopigmentBleaching` help text (1 td = 137
 isomerizations per L cone per second and 110 per M cone, 560 nm, CIE 10-degree
 fundamentals). Wandell BA, Useful numbers in vision science (sunlight 1e4
 cd/m2, indoor lighting 1e2, a troland is 1 cd/m2 through 1 mm2 of pupil).
+
+
+### Phase 13: the real mosaic (2026-10-05)
+
+**What was built.**
+
+- **(a) No S cones at the centre of the fovea: on for the human eye.**
+  `EyeParams.absent_within_deg` gives, for each receptor type, the radius of
+  the zone round the centre of gaze that has none of it. Human: 0.175 degrees
+  for S (a zone about 100 micrometres, 0.35 degrees, across; Curcio et al.
+  1991). In `build_mosaic` a single receptor of that type inside the zone is
+  drawn again from the other types in their own proportions (`retype_inside`
+  in `stages/mosaic.py`); a position that stands for a whole pixel of
+  receptors loses the type only if the whole pixel is inside the zone.
+- **Two changes to the retina that the zone needed** (`stages/receptive.py`).
+  Without them the zone wrecked the narrow-field eye (below).
+  - A cell whose centre reaches no receptor of a type its class weights is
+    silent (`opponent_retina`). A blue-yellow cell with no S cone in reach was
+    answering with minus the brightness, at full gain, and clipping.
+  - A pool that goes through a coarse layer is scaled back to a mean over the
+    receptors it does reach (`smooth`). Coarse cells with no receptor of
+    their type are empty, and a cell reading some of them got less than a
+    mean, so grey no longer cancelled in the colour cells up to 29 pixels from
+    the centre. The scaling is applied only where a pool comes up short, so an
+    eye without gaps is built exactly as before.
+- **(b) The L:M ratio: a parameter.** It already was one, as
+  `EyeParams.type_fractions`. `human.py` now names it: `LM_RATIO = 2.0`,
+  `LM_RATIO_RANGE = (1.1, 16.5)` (Hofer et al. 2005) and
+  `cone_fractions(lm_ratio)`, from which `PARAMS.type_fractions` is made
+  (0.60, 0.30, 0.10 as before). Another person's eye is
+  `replace(human.PARAMS, type_fractions=human.cone_fractions(4.0))`. It is not
+  an option of `run()`, which takes a species by name.
+- **(c) Positional jitter: built, off.** `EyeParams.jitter` is the standard
+  deviation of each single receptor's displacement, as a fraction of the local
+  spacing. Positions that stand for a pixel of receptors do not move. It is 0
+  for every species: real cones are off the lattice (Hirsch & Miller 1987),
+  but no figure for how far could be checked for this work, and the model's
+  lattice is rings, not the hexagonal packing a figure would refer to.
+
+**Measurements.** Mean of the three samples, real neurons 100 ms seed 0.
+
+| Eye | Variant | Real PSNR | Real SSIM | Ideal PSNR | Clipped |
+|---|---|---|---|---|---|
+| Human, 128 px, 60 degrees | before this phase | 29.97 dB | 0.864 | 40.76 dB | 0.029% |
+| | **now (zone on)** | **29.97 dB** | 0.864 | **40.76 dB** | 0.029% |
+| Human, 96 px, 60 degrees | before this phase | 30.59 dB | 0.904 | 40.13 dB | 0.055% |
+| | **now (zone on)** | **30.59 dB** | 0.904 | **40.13 dB** | 0.055% |
+| Human retina, 128 px, 1 degree | no zone | 17.13 dB | 0.329 | 18.40 dB, not converged | 2.18% |
+| | zone, as first prototyped | 16.08 dB | 0.310 | 9.89 dB, not converged | 3.18% |
+| | **zone, as built** | 17.07 dB | 0.331 | 17.29 dB, not converged | 2.58% |
+| | zone, jitter 0.1 | 17.05 dB | 0.331 | not run | 2.60% |
+| | zone, jitter 0.2 | 17.07 dB | 0.332 | not run | 2.60% |
+| | zone, L:M 1.1 | 17.21 dB | 0.335 | not run | 2.55% |
+| | zone, L:M 16.5 | 16.06 dB | 0.341 | not run | 5.17% |
+| Human retina, 128 px, 2 degrees | no zone | 20.37 dB | 0.486 | 23.14 dB | 1.85% |
+| | **zone, as built** | 20.29 dB | 0.483 | 21.02 dB | 1.97% |
+
+"Human retina" is the human eye stopped at the retina (`cortex_sf_cpd=()`),
+as in phase 9: across 1 degree only one cortex scale fits the picture and
+would hide the mosaic. Across 1 degree a pixel is half an arcminute and each
+position holds one cone (11,003 cones: 6,727 L, 3,333 M, 943 S with the zone;
+133 S cones became L or M). Across 2 degrees every position still holds all
+three types, and 347 central positions lose their S cone.
+
+**What the numbers say.**
+
+- **Across 60 degrees nothing changes**, to the last digit shown: the zone is
+  0.35 degrees across and a pixel is 0.47 (0.63 at 96 px), so no pixel is
+  wholly inside it. The mosaic is identical (a test holds this at 64 px), and
+  mouse and fly are bit-identical; the pinned test was not edited. So by the
+  roadmap's rule the zone is on.
+- **Across 1 or 2 degrees the zone costs blue at the centre**, which is what
+  it does in a real eye (the foveola is blind to blue-yellow): -0.06 and
+  -0.08 dB with real neurons, -1.1 and -2.1 dB with ideal neurons. Most of the
+  ideal loss is one sample, the coffee cup (15.9 to 13.2 dB at 1 degree, 21.9
+  to 17.9 at 2), whose centre is strongly coloured.
+- **Jitter does nothing measurable** (within 0.02 dB at 0.1 and 0.2 of the
+  spacing). The decoder knows where every receptor is, and a slightly
+  irregular sampling of a picture this smooth carries the same information.
+- **The L:M ratio matters only at the extreme**: 1.1 gives +0.14 dB over 2,
+  and 16.5 gives -1.0 dB with twice the clipping. With 569 M cones among
+  11,003 the red-green cells compare a dense signal with a sparse one. Across
+  60 degrees the ratio changes nothing in the picture (every pixel holds all
+  types and each type's pool is a mean); it would only change how many photons
+  each type catches in dim light.
+
+**The narrow-field eye is not healthy, with or without this phase.** Across
+1 degree, 2.2% of retinal cells clip and the ideal-neuron solve does not
+converge in 1000 steps, before any change here; the gains and the solver were
+chosen at 60 degrees. The narrow-field rows show the direction of each
+effect. They are not calibrated results, and the guard of 0.1% clipped cells
+was not met there before this work and is not met now.
+
+**Guards.** Results at 96 and 128 px, and mouse and fly, unchanged. The
+silenced and rescaled retina keeps an exact adjoint (a test at relative
+1e-10 on a mosaic with a gap; the jittered human eye's composed operator at
+1e-9). 332 tests pass (318 before; 14 new).
+
+**Deviations from the brief.** The two retina changes were not asked for; the
+zone could not be switched on without them. Jitter has no default value
+because none could be supported. The L:M ratio is a named function over an
+existing parameter, not a new field.
+
+**Not verified.** The jitter figure (none found). `receptors_each`, which
+phase 10 uses for the photon count, still credits a pixel inside the zone
+with its L and M cones only at their usual shares (10% too few), and can
+misjudge a jittered receptor that sits where the spacing crosses one pixel;
+both matter only for photon noise at narrow fields and were not measured. The
+zone with photon noise, with several looks, and at 256 px. Whether the S-cone
+density just outside the zone rises as it does in a real eye (it does not in
+the model: the fraction is 10% everywhere else). The range of the L:M ratio
+is quoted from memory of Hofer et al. (2005).
+
+Sources: Curcio CA, Allen KA, Sloan KR, et al. (1991). Distribution and
+morphology of human cone photoreceptors stained with anti-blue opsin. J Comp
+Neurol 312:610-624. Hofer H, Carroll J, Neitz J, Neitz M, Williams DR (2005).
+Organization of the human trichromatic cone mosaic. J Neurosci 25:9669-9679.
+Hirsch J, Miller WH (1987). Does cone positional disorder limit resolution?
+J Opt Soc Am A 4:1481-1492.

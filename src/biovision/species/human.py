@@ -32,11 +32,28 @@ CITATIONS = (
     "and blue-yellow chromatic gratings. J Physiol 359:381-400.",
     "Rucci M, Poletti M (2015). Control and functions of fixational eye movements. "
     "Annu Rev Vis Sci 1:499-518.",
+    "Curcio CA, Allen KA, Sloan KR, et al. (1991). Distribution and morphology of human "
+    "cone photoreceptors stained with anti-blue opsin. J Comp Neurol 312:610-624.",
     "Thibos LN, Ye M, Zhang X, Bradley A (1992). The chromatic eye: a new reduced-eye "
     "model of ocular chromatic aberration in humans. Appl Opt 31:3594-3600.",
     "Wandell BA. Useful numbers in vision science (a table published with "
     "Foundations of Vision, Sinauer 1995).",
 )
+
+# L cones for each M cone. Two is near the average; among people with normal
+# colour vision it runs from 1.1 to 16.5 (Hofer et al. 2005).
+LM_RATIO = 2.0
+LM_RATIO_RANGE = (1.1, 16.5)
+S_FRACTION = 0.10  # S cones are sparse (Hofer et al. 2005)
+
+
+def cone_fractions(lm_ratio: float) -> tuple[float, float, float]:
+    """The shares of L, M and S cones for a person with `lm_ratio` L cones per M cone."""
+    if lm_ratio <= 0:
+        raise ValueError(f"lm_ratio must be positive, got {lm_ratio}")
+    middle = (1.0 - S_FRACTION) / (1.0 + lm_ratio)
+    return (lm_ratio * middle, middle, S_FRACTION)
+
 
 PARAMS = EyeParams(
     receptor_names=("L", "M", "S"),
@@ -44,7 +61,7 @@ PARAMS = EyeParams(
     color_matrix=((0.2730, 0.6643, 0.0629),
                   (0.1002, 0.7876, 0.1122),
                   (0.0178, 0.1096, 0.8726)),
-    type_fractions=(0.60, 0.30, 0.10),  # Hofer et al. 2005; S cones are sparse
+    type_fractions=cone_fractions(LM_RATIO),  # 0.60, 0.30, 0.10
     colocated=False,
     blur_sigma_deg=0.007,  # point spread about 1 arcmin wide
     lattice="foveated",
@@ -96,6 +113,12 @@ PARAMS = EyeParams(
     # the dark (Wandell's table of useful numbers). 3 mm blurs the S cones' light
     # by 2.4 arcminutes.
     pupil_mm=3.0,
+    # The centre of the fovea has no S cones: a zone about 100 micrometres, or
+    # 0.35 degrees, across (Curcio et al. 1991). The radius, for each cone type.
+    absent_within_deg=(0.0, 0.0, 0.175),
+    # `jitter` is left at 0. Real cones are not on a perfect lattice (Hirsch &
+    # Miller 1987), but no figure for the disorder could be checked for this
+    # work. Measured at 0.1 and 0.2 of the spacing across 1 degree: no change.
     # The pupil also sets the light level for `run(photons_per_s=...)`: retinal
     # illuminance in trolands is luminance (cd/m2) times pupil area (mm2), and one
     # troland is about 137 photons absorbed per second by an L cone and 110 by an

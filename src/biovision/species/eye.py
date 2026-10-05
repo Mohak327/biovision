@@ -9,7 +9,7 @@ from ..stages.color import ColorProjection
 from ..stages.gabor import gabor_bank
 from ..stages.movement import EyeShifts, PerLook, look_offsets
 from ..stages.mosaic import (Mosaic, all_types_at, assign_types, foveated_lattice,
-                             hex_lattice, mosaic_sampling, square_lattice)
+                             hex_lattice, mosaic_sampling, retype_inside, square_lattice)
 from ..stages.nonlinearity import LinearRectified
 from ..stages.optics import OpticalBlur, defocus_sigma_deg
 from ..stages.photons import PhotonCatch
@@ -59,6 +59,12 @@ class EyeParams:
     # photons a receptor catches, not its signal: a receptor adapts its gain to
     # the light it gets. Empty = 1 for every type.
     transmission: tuple[float, ...] = ()
+    # For each receptor type, the radius in degrees of the zone round the centre of
+    # gaze that has none of it (0 = found everywhere). Empty = all types everywhere.
+    absent_within_deg: tuple[float, ...] = ()
+    # How far receptors sit from a perfect lattice: the standard deviation of each
+    # one's displacement, as a fraction of the local spacing. 0 = a perfect lattice.
+    jitter: float = 0.0
 
 
 def local_spacing_px(params: EyeParams, field: VisualField, positions: np.ndarray,
@@ -77,7 +83,12 @@ def build_mosaic(params: EyeParams, field: VisualField,
 
     Where the eye's receptors are smaller than a pixel, many receptors of every
     type fall inside each pixel, so that position carries all types. Elsewhere
-    each position holds one receptor of a randomly drawn type.
+    each position holds one receptor of a randomly drawn type, moved off the
+    lattice by `jitter`.
+
+    A type is left out inside its zone of `absent_within_deg`: a single
+    receptor there is drawn again from the other types, and a shared position
+    loses the type if its whole pixel is inside the zone.
 
     The second value is the mean number of real cells that one model position
     stands for (1 when receptors are at least a pixel apart).
@@ -87,6 +98,8 @@ def build_mosaic(params: EyeParams, field: VisualField,
     """
     if density <= 0:
         raise ValueError(f"density must be positive, got {density}")
+    if params.jitter < 0:
+        raise ValueError(f"jitter must not be negative, got {params.jitter}")
     size = field.size_px
     true_spacing = field.to_px(params.spacing_deg) / np.sqrt(density)
     spacing = max(true_spacing, MIN_SPACING_PX)
@@ -109,6 +122,22 @@ def build_mosaic(params: EyeParams, field: VisualField,
     shared = all_types_at(positions[dense], n_types)
     single = positions[~dense]
     single_types = assign_types(len(single), params.type_fractions, rng)
+    if params.absent_within_deg:
+        if len(params.absent_within_deg) != n_types:
+            raise ValueError("absent_within_deg needs one value per receptor type")
+        radius = field.to_px(np.asarray(params.absent_within_deg, dtype=float))
+
+        def eccentricity(points):
+            return np.linalg.norm(points - (size - 1) / 2.0, axis=1)
+
+        single_types = retype_inside(single_types, eccentricity(single), radius,
+                                     params.type_fractions, rng)
+        reach = MIN_SPACING_PX / np.sqrt(2.0)  # from the centre of a pixel to its corner
+        present = eccentricity(shared.positions) + reach > radius[shared.types]
+        shared = Mosaic(shared.positions[present], shared.types[present], n_types)
+    if params.jitter:
+        moved = rng.standard_normal(single.shape) * params.jitter * local_spacing[~dense, None]
+        single = np.clip(single + moved, 0.0, size - 1.0)
     mosaic = Mosaic(np.vstack([shared.positions, single]),
                     np.concatenate([shared.types, single_types]), n_types)
     return mosaic, cells_per_position
