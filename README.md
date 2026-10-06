@@ -67,8 +67,13 @@ takes about as many times longer per solver step as there are looks. Add
 second where the picture is white. Light arrives as photons, so in dim light
 the receptors' own signal is noisy. For a human cone, sunlight is about 1e7,
 a lit room 1e5 and dusk 1e4; the human reconstruction loses 0.1 dB in
-sunlight, about 5 dB in a lit room and 11 dB at dusk. Without the option the
-light is unlimited. With no `--image`, a bundled sample is used.
+sunlight, about 5 dB in a lit room and 11 dB at dusk. With a light level the
+human eye also uses its rods, as far as the light leaves them unsaturated.
+They are saturated in a lit room, change nothing at dusk, begin to help at
+about 1e3 (1 cd/m2: +0.3 dB) and add 2 dB at 1e2, where the cones alone give
+12.8 dB and the eye with rods 14.8. Without the option the light is
+unlimited and there are no rods in the eye. With no `--image`, a bundled
+sample is used.
 
 From Python:
 
@@ -146,9 +151,15 @@ def build(field: VisualField) -> Pipeline:
   added (phase 5 in the audit document).
 - Where receptors are smaller than a pixel, the image sets the resolution, not
   the eye. One model cell then stands for all the real cells in that pixel.
-- The mouse model is its cone pathway in daylight.
-- No rods. Photon noise (`--photons`) is for cones only, so the model's dusk
-  is darker for it than for a real eye, which has switched to rods by then.
+- The mouse model is its cone pathway in daylight. It has no rods, though a
+  real mouse retina is 97% rods: no rod figures for it were checked, and its
+  result here does not depend on the light until far below dusk.
+- The human eye's rods (`--photons`) are a first model: one density
+  everywhere outside the rod-free zone, one number for how saturated they
+  are, and no change of pupil or of adaptation over time. In the dark the
+  rebuilt picture keeps noisy colour where a person sees none: the cones'
+  signals are still in the code and the reconstruction uses them (phase 14
+  in the audit document).
 - The picture is three numbers per pixel, not a spectrum. Chromatic
   aberration uses one focus per cone type, and real spectra would need
   hyperspectral pictures (phase 12 in the audit document).

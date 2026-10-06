@@ -108,6 +108,19 @@ added only while encoding, through `LinearStage.encode(x, rng)`, which is
 `forward` for every other stage. `noise=False` gives the noise-free code:
 no spike noise and no photon noise. The default, None, is unlimited light.
 
+An eye that has rods (`EyeParams.rods`, a `Rods`; only the human eye) uses
+them only in a run with a light level. `with_rods()` in `species/eye.py`,
+called by `run()` before `lit()`, returns the eye with the rods as one more
+receptor type (colour row, blur, a model rod at each position outside the
+rod-free zone, placed after the cones in the mosaic) and a `rods` stage
+(`rod_pathway` in `stages/receptive.py`) straight after `mosaic` and
+`photons`: each cone passes on `1 - share` of its own signal and `share` of
+the mean of the rods round it. `share` (`rod_share`) is one number for the
+run, set by the light. The stage's output is one value per cone, so the
+retina, cortex and spikes are the eye's own, untouched; rods add no cells.
+In a lit eye `metadata["params"]` and `metadata["mosaic"]` describe the eye
+with its rods. With no light level the eye is built exactly as before.
+
 The retina and cortex stages are sparse matrices. Up to 128 px for the human
 eye, and always for mouse and fly, each is one matrix (`SparseStage`). Above
 that a wide cell pools from a coarse layer that has summarized the cells under
@@ -325,6 +338,23 @@ Each of these came out of the prototype. Do not undo one without re-measuring.
   1e4 against leaving it out. Unlimited light is the default because a
   sunlight figure exists only for human L and M cones, and any default would
   move every seeded result for a 0.03 dB change.
+- **Rods join the cones' pathways; they are not a class of cell** (phase 14;
+  `human.RODS`, `with_rods`, `rod_pathway`). In a run with a light level each
+  cone's signal becomes `(1 - share) * cone + share * rods round it`, with
+  `share = 600 / (600 + rod photons per second)` (Thomas & Lamb 1999) and a
+  rod catching 0.16 of a cone's photons. Human, 128 px, against the eye
+  without rods: -0.01, +0.02, +0.02, +0.28 and +2.0 dB at 1e6, 1e5, 1e4, 1e3
+  and 1e2 photons per cone per second (SSIM 0.19 to 0.49 at 1e2). Measured and
+  rejected: a rod-driven luminance `RetinaClass` with its own cortex cells
+  (-0.45 dB at 1e5 and -0.43 at 1e4 at 96 px: its quiet rows lower the mean
+  noise the regularization is set from, and with the cone-only eye's `lam` the
+  loss is gone); rods added to the cones' signals without taking the cones'
+  share (+0.9 dB at 1e2, and 0.17% of signals clipped at 1e3); a wider rod pool
+  (1.5 px: no gain). With no light level the rods are not in the eye at all,
+  so every earlier result is bit-identical. The dark picture is not
+  colourless: the cones' rows stay in the code, the decoder still fits them,
+  and their noise shows as coloured speckle. A stronger colour prior
+  (`chroma_weight=10`) lowered PSNR on the samples. The mouse has no rods here.
 - **No S cones within 0.175 degrees of the centre of gaze (human), on**
   (phase 13; Curcio et al. 1991). Across 60 degrees the zone is smaller than a
   pixel and changes nothing. Two rules in the retina came with it and must
@@ -407,7 +437,24 @@ eye, real neurons, mean of the three samples, seed 0
 With ON and OFF cells the spikes carry far less noise, so the light is the
 limit sooner: a lit room now costs 4.9 dB where it cost 1.1, and from there
 down the result is nearly what it was. The luminances assume a 3 mm pupil and about 125 photons per cone per second
-per troland. The model has no rods, so the dusk row is a cone-only eye.
+per troland. Those rows were measured before the eye had rods; with them the
+128 px column is as below.
+
+With rods (phase 14), human eye, real neurons, mean of the three samples,
+seed 0. "Cones only" is `replace(human.PARAMS, rods=None)`:
+
+| Photons per cone per second | Rods' share | 128 px, cones only | 128 px, with rods | 96 px, cones only | 96 px, with rods |
+|---|---|---|---|---|---|
+| Unlimited (default) | none in the eye | 36.26 dB | 36.26 dB | 37.36 dB | 37.36 dB |
+| 1e6 | 0.004 | 35.07 dB | 35.06 dB | 35.19 dB | 35.23 dB |
+| 1e5, a lit room | 0.036 | 31.40 dB | 31.42 dB | 30.49 dB | 30.50 dB |
+| 1e4, dusk | 0.27 | 25.34 dB | 25.36 dB | 24.89 dB | 24.95 dB |
+| 1e3, about 1 cd/m2 | 0.79 | 18.48 dB | 18.76 dB | 19.01 dB | 19.39 dB |
+| 1e2, about 0.1 cd/m2 | 0.97 | 12.77 dB | 14.78 dB | 13.41 dB | 15.57 dB |
+
+SSIM at 128 px, cones only to with rods: 0.784 to 0.793 at 1e4, 0.539 to
+0.629 at 1e3, 0.190 to 0.489 at 1e2. Under 0.06% of signals are clipped with
+rods at every level; the cone-only eye clips 2.8% at 1e2.
 
 ## Adding a species
 

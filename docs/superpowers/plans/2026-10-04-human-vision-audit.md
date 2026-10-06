@@ -1804,3 +1804,256 @@ real neurons 100 ms seed 0; one run each).
 The benchmark's "ideal" has neither spike nor photon noise, so the photon rows
 have no ideal figure. 96 px, 1e6 photons and other numbers of looks were not
 run again.
+
+
+### Phase 14: rods and night vision (2026-10-06)
+
+**Outcome: built, and on for the human eye whenever a run has a light level.**
+Rods change nothing down to dusk, begin to help at about 1e3 photons per cone
+per second (about 1 cd/m2) and add 2 dB at 1e2. They were not built the way
+the brief proposed (a rod-driven class of retinal cell): that was measured
+first and failed the guards. The mouse has no rods.
+
+**What was built.**
+
+- **`Rods`** (`species/eye.py`), a frozen dataclass on `EyeParams.rods`: the
+  rods' sensitivity over RGB, their spacing, the radius of the rod-free zone,
+  how many photons a rod catches for each one a cone catches, the catch at
+  which a rod's range is halved, and its defocus. `human.RODS` holds the
+  numbers and their sources (below). Mouse and fly have `rods=None`.
+- **`with_rods(pipeline, photons_per_s)`** (`species/eye.py`): the eye with its
+  rods at work in light of that level; an eye without rods is returned as it
+  is. `run()` calls it before `lit()` when a light level is given, and not
+  otherwise. It adds the rods as one more receptor type (a fourth row of the
+  colour matrix, a fourth blur, a fourth zone) and builds the mosaic with
+  `build_mosaic`, unchanged: the rods' share of the cones' lattice is 0, so a
+  position that holds a single cone gets no rod, and a position that stands
+  for a pixel of receptors carries a rod unless the whole pixel is inside the
+  rod-free zone (the rule phase 13 made for S cones). The cones are the same
+  receptors in the same order, and the rods follow them. A model rod stands
+  for the rods in its pixel: 2,070 at 128 px and 3,680 at 96 px.
+- **`rod_pathway(mosaic, rod_type, share, sigma_px)`** (`stages/receptive.py`):
+  a linear stage, a sparse matrix, named `rods`, straight after `mosaic` (and
+  after `photons`, so a rod counts its photons before it saturates). Each cone
+  passes on `(1 - share)` of its own signal plus `share` times the Gaussian
+  mean of the rods round it (the eye's centre size, at least half a pixel). A
+  cone with no rod in reach keeps its own signal whole. The output is one
+  value per cone, so the retina, the cortex, the firing rates and the spike
+  budget are the eye's own, untouched: **rods add no cells and no spikes**,
+  which is how the real retina does it (rod bipolar cells, AII amacrine cells,
+  then the cones' own bipolar and ganglion cells).
+- **`rod_share(rods, photons_per_s)`**: the saturation rule, below.
+- **`receptor_stages`** (`species/eye.py`): the colour, optics and mosaic
+  stages, taken out of `assemble` so that `with_rods` builds them the same way.
+- Nothing in `core/`, `server.py`, `cli.py` or `scripts/benchmark.py` changed.
+  `lit()` is as it was.
+
+**The saturation rule, and how it stays inside the architecture.** A rod's
+response does not keep growing with the light. Thomas & Lamb (1999) measured
+it in human rods: against a steady background the largest response falls as
+I0 / (I0 + background), with I0 about 70 scotopic trolands, or 600 photons
+absorbed per rod per second. The model uses that as the rods' share of the
+pathway they have in common with the cones:
+
+    share = 600 / (600 + rod photons per second),  rod photons = 0.16 x cone photons
+
+and the cones have the rest, `1 - share`. It is 0.004 at 1e6 photons per cone
+per second, 0.036 in a lit room (1e5), 0.27 at dusk (1e4), 0.79 at 1e3 and
+0.97 at 1e2. By the same rule a rod has 3% of its range at 2,000 scotopic
+trolands, where Aguilar & Stiles (1954) found the rod system saturated. The
+options were:
+
+1. *A saturating curve at every rod* (the true form). A pointwise stage in
+   the middle of the linear stages: the decoder could no longer be one linear
+   solve. Not built.
+2. *One number for the run, set from the light before the picture is seen.*
+   Every stage stays linear with an exact transpose. **Chosen.** It ignores
+   that a dark part of a bright picture leaves its rods less saturated.
+3. *A switch*: rods in below a light level, out above. Linear, but it needs a
+   threshold no source gives, and the result would jump there.
+
+The share is taken from the cones, not added to them. Rods added on top of an
+unchanged cone signal (option 2 without the `1 - share`) double the brightness
+cells' drive in the dark: measured at 96 px, +0.3 dB at 1e3 with 0.17% of
+signals clipped, and +0.9 dB at 1e2. Taking the share from the cones keeps a
+uniform field exactly as it was (so the colour cells still cancel grey and
+clipping does not rise), and it is what lets the rods' clean signal replace
+the cones' noisy one in the brightness cells.
+
+**Measurements.** `run()` as built, human eye, 60 degrees, 100 ms, seed 0,
+real neurons, mean of the three samples. "Cones only" is the same code with
+`replace(human.PARAMS, rods=None)`, which is the eye before this phase.
+
+| 128 px, photons per cone per second | Rods' share | Cones only: PSNR | SSIM | With rods: PSNR | SSIM | Change | Clipped, cones only / with rods |
+|---|---|---|---|---|---|---|---|
+| unset (default) | no rods in the eye | 36.26 dB | 0.971 | 36.26 dB | 0.971 | identical | 0.029% |
+| 1e6 | 0.004 | 35.07 dB | 0.958 | 35.06 dB | 0.958 | -0.01 dB | 0.029% / 0.029% |
+| 1e5 (a lit room) | 0.036 | 31.40 dB | 0.909 | 31.42 dB | 0.910 | +0.02 dB | 0.030% / 0.030% |
+| 1e4 (dusk) | 0.27 | 25.34 dB | 0.784 | 25.36 dB | 0.793 | +0.02 dB | 0.030% / 0.029% |
+| 1e3 (about 1 cd/m2) | 0.79 | 18.48 dB | 0.539 | 18.76 dB | 0.629 | +0.28 dB | 0.071% / 0.028% |
+| 1e2 (about 0.1 cd/m2) | 0.97 | 12.77 dB | 0.190 | 14.78 dB | 0.489 | **+2.01 dB** | 2.841% / 0.029% |
+
+| 96 px, photons per cone per second | Cones only: PSNR | SSIM | With rods: PSNR | SSIM | Change | Clipped, cones only / with rods |
+|---|---|---|---|---|---|---|
+| unset (default) | 37.36 dB | 0.985 | 37.36 dB | 0.985 | identical | 0.055% |
+| 1e6 | 35.19 dB | 0.969 | 35.23 dB | 0.969 | +0.04 dB | 0.055% / 0.055% |
+| 1e5 | 30.49 dB | 0.913 | 30.50 dB | 0.914 | +0.01 dB | 0.055% / 0.055% |
+| 1e4 | 24.89 dB | 0.806 | 24.95 dB | 0.812 | +0.06 dB | 0.055% / 0.054% |
+| 1e3 | 19.01 dB | 0.602 | 19.39 dB | 0.677 | +0.38 dB | 0.080% / 0.053% |
+| 1e2 | 13.41 dB | 0.239 | 15.57 dB | 0.543 | **+2.16 dB** | 2.158% / 0.051% |
+
+The 96 px "cones only" column is from the prototype, which ran the cone eye
+through the shipped `run()`; its unset row reproduces the pinned 37.36 dB.
+
+**What the numbers say.**
+
+- **No change in bright light.** Down to dusk the rods are saturated or the
+  cones are still the better signal, and the result moves by a few hundredths
+  of a decibel, inside the seed's spread.
+- **Rods start to help at about 1e3 photons per cone per second**, where they
+  hold 79% of the pathway: +0.3 dB and +0.09 SSIM at 128 px. At 1e2 they add
+  2.0 dB and SSIM goes from 0.19 to 0.49. A control with the cones scaled by
+  `1 - share` and no rods gives 13.47 dB at 1e2 and 96 px (13.41 unscaled), so
+  the gain is the rods' signal and not the scaling.
+- **The dark picture is not colourless and not blurrier, which is not what
+  the brief expected.** With rods the picture is sharper in brightness (its
+  mean absolute row difference is 1.9 times the original's at 1e2 and 128 px,
+  0.74 times without rods) and it keeps coloured speckle. Rods fix one
+  direction of colour space, roughly 0.6 green + 0.4 blue. The other two
+  (red against green, blue against yellow) are still measured only by the
+  cones, whose rows stay in the code scaled by `1 - share`; a least-squares
+  decoder scales them back up, noise and all. So two of the three numbers per
+  pixel are as noisy as before, and the gain is bounded near 10 log10(3/2) =
+  1.8 dB plus what the cone-only eye loses by clipping.
+- **The decoder's one regularization strength is the limit, not the eye.**
+  With rods the brightness cells are clean and the colour cells are not, and
+  one `lam` set from the mean noise cannot suit both: at 1e3 and 96 px,
+  `lam = 5e-3` in place of the rule's 1.3e-3 gives 20.75 dB against 19.39,
+  while the cone-only eye is not helped by a larger one (18.72 dB at 0.1
+  against 19.01). A stronger colour prior, which would make the picture grey
+  as a dark-adapted person sees it, lowers PSNR on these colourful samples
+  (`chroma_weight = 10`: 16.11 dB at 1e3 and 14.99 at 1e2, 96 px) though it
+  raises SSIM (0.69 and 0.67). Neither was changed: the regularization rule
+  is shared by every species and every earlier result.
+
+**What was rejected, with numbers** (prototypes at 96 px, same benchmark).
+
+| Variant | 1e6 | 1e5 | 1e4 | 1e3 | 1e2 | Why not |
+|---|---|---|---|---|---|---|
+| Cones only | 35.19 | 30.49 | 24.89 | 19.01 | 13.41 dB | |
+| **Rods join the cones' pathways (built)** | 35.23 | 30.50 | 24.95 | 19.39 | 15.57 dB | |
+| A rod-driven luminance `RetinaClass` (gain 1.5), rods scaled by their range: the brief's model | 35.06 | 30.04 | 24.46 | 18.91 | 13.81 dB | -0.45 and -0.43 dB at 1e5 and 1e4: fails guard 2 |
+| The same, with the cones scaled by Phi / (Phi + 4000) as well | 35.05 | 30.13 | 24.56 | 19.05 | 15.58 dB | -0.36 and -0.32 dB at 1e5 and 1e4 |
+| Rods added to the cones' signals, cones unscaled | | | 24.93 | 19.31 | 14.30 dB | 0.17% clipped at 1e3, 2.3% at 1e2 |
+| Built form, rods pooled over 1.5 px | | | | 19.52 | 15.29 dB | no gain; SSIM 0.64 and 0.47 against 0.68 and 0.54 |
+
+The separate class loses in moderate light for a reason that has nothing to
+do with rods: its cells are a quarter of all cells and nearly silent there,
+which lowers the mean noise variance that sets `lam`, so the cones' noise is
+regularized less. With `lam` fixed at the cone-only eye's value the same eye
+gives 30.60 dB at 1e5 (cones only 30.49). The class also adds a third more
+cortex cells and spikes, which phase 6b argued is a larger spike budget and
+not a cell type. Joining the cones' pathways has neither problem, runs at the
+cone eye's cost, and is the real circuit.
+
+**Guards.**
+
+1. *Unset light is bit-identical.* `run()` does not call `with_rods` without
+   a light level, so the eye is assembled as before (`assemble` now calls
+   `receptor_stages`, the same three constructors in the same order). The
+   pinned mouse and fly test and the 363 earlier tests pass unedited; the
+   human means are 37.36 dB at 96 px and 36.26 at 128. The ideal figures
+   (41.44 and 42.14) were not run again.
+2. *Rods never cost more than 0.2 dB and gain more than 1 dB somewhere.* The
+   worst change is -0.01 dB (1e6, 128 px); the best +2.01 dB at 128 px and
+   +2.16 at 96 px, both at 1e2. So rods are on for the human eye.
+3. *Exact transposes.* `rod_pathway` is one sparse matrix (tested at relative
+   1e-10); the composed operator of the lit human eye with rods is tested at
+   1e-9. No pointwise stage was added or changed.
+4. *Clipping.* With rods, at most 0.055% of signals at 96 px and 0.030% at
+   128 px, at every level measured. (Without rods the cone-only eye clips
+   2.2% and 2.8% at 1e2.)
+5. *Suite.* 388 tests pass (363 before; 25 new in `tests/test_rods.py`).
+
+**Sources and what was checked.** Checked for this work against a search
+result quoting the paper or its abstract, not against the full text:
+
+- Curcio et al. (1990): 92 million rods; rod-free zone 0.350 mm (1.25
+  degrees) across; 120,000 to 177,000 rods per mm2 along the ring of highest
+  density. The spacing of 0.0103 degrees is this work's arithmetic from the
+  lower figure and 0.28 mm per degree.
+- Thomas & Lamb (1999): response range falls as I0 / (I0 + background); I0 =
+  70 scotopic trolands, about 600 photons per rod per second (so 8.6 photons
+  per rod per second per scotopic troland).
+- Aguilar & Stiles (1954): the rod system saturates at about 2,000 scotopic
+  trolands.
+- Pattanaik et al. (1998): scotopic luminance = -0.702 X + 1.039 Y + 0.433 Z.
+
+**Not checked, or this work's own approximation.**
+
+- The rods' RGB row (0, 0.602, 0.398): Pattanaik's fit through the sRGB
+  matrix gives (-0.060, 0.544, 0.360); the negative red weight was set to 0
+  and the row scaled to sum to 1. It is applied to the picture as stored, as
+  the cones' rows are (phase 5).
+- The ratio of scotopic to photopic trolands for white, 2.3: quoted figures
+  for daylight sources run from 2.1 to 2.4; no display spectrum was used. It
+  sets the rods' catch, 8.6 x 2.3 / 125 = 0.16 of a cone's.
+- 125 photons per cone per second per troland is phase 10's figure.
+- The rods' defocus, 0.37 dioptres, uses the chromatic-eye constants that
+  phase 9 quoted from memory.
+- The rod pool is the eye's centre size (0.05 degrees), which is a guess: no
+  figure for how many rods converge was checked. Across 60 degrees it is
+  under the half-pixel floor, so the pixel is the pool.
+- One rod density everywhere outside the zone. Real rods are sparser near the
+  centre and in the far periphery.
+- The model's cones thin out faster with eccentricity than real ones (phase
+  10 noted 13 in an edge pixel at 128 px), which makes the cone-only eye
+  worse in the dark than a real one and flatters the rods. Against that, the
+  model's cones have no noise of their own in the dark, which real cones
+  have, and that flatters the cones.
+
+**Mouse.** Left without rods, for three reasons. Its densities have a source
+(Jeon, Strettoi & Masland 1998) but no figure for how a mouse rod's catch
+compares with its cone's, or for where it saturates, was checked. Its
+receptors are single ones a degree apart (an acuity grid, not its cones), and
+the rule that puts a model rod at a position needs positions that stand for a
+pixel of receptors. And phase 10 measured that the mouse with real neurons
+does not notice the light until about 10 photons per receptor per second, so
+there is no level at which rods could gain the 1 dB the guard asks. Nothing
+was measured for the mouse in this phase.
+
+**Deviations from the brief.**
+
+- Rods are not a `RetinaClass`. They join the cones' pathways before the
+  retinal cells (above, with the measurements that decided it).
+- The light-level rule sets the cones' share as well as the rods'. It is one
+  rule and one sourced number, but the brief asked for rod saturation only.
+- The rods have no larger centre of their own; `RetinaClass.center_scale` is
+  not used.
+- The dark picture is not colourless or blurrier (above).
+- `Rods` is its own dataclass, not more per-type tuples on `EyeParams`.
+- Tests: the stage's eight tests were watched failing together (an import
+  error), then the eye's thirteen together, then the run's four, of which
+  three failed for the right reason before `run()` was edited. One of those
+  (rods help in the dark) was first written at a light level where the 48 px
+  eye shows no gain and was moved to one where it does.
+
+**Not verified.** The web app with a light level set: the server sends the
+cone mosaic before the run and the rod eye's receptor names and four-row
+colour matrix after it; the cones come first in the receptors' responses so
+the retina view should draw as before, but no server was started. Figures
+from `biovision report` with `--photons` for the human eye. Rods with
+several looks beyond a test that it runs and converges. Ideal neurons with a
+light level. 256 px and above. Narrow fields, where positions hold single
+cones and so get no rods. One seed.
+
+Sources: Curcio CA, Sloan KR, Kalina RE, Hendrickson AE (1990), as above.
+Thomas MM, Lamb TD (1999). Light adaptation and dark adaptation of human rod
+photoreceptors measured from the a-wave of the electroretinogram. J Physiol
+518:479-496. Aguilar M, Stiles WS (1954). Saturation of the rod mechanism of
+the retina at high levels of stimulation. Optica Acta 1:59-65. Pattanaik SN,
+Ferwerda JA, Fairchild MD, Greenberg DP (1998). A multiscale model of
+adaptation and spatial vision for realistic image display. SIGGRAPH 98,
+287-298. Jeon CJ, Strettoi E, Masland RH (1998). The major cell populations
+of the mouse retina. J Neurosci 18:8936-8946. (Volume and page numbers of
+all but Thomas & Lamb are from memory.)
