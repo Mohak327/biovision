@@ -13,12 +13,35 @@ from ..stages.mosaic import (Mosaic, all_types_at, assign_types, foveated_lattic
 from ..stages.nonlinearity import LinearRectified, OnOffPair
 from ..stages.optics import OpticalBlur, defocus_sigma_deg
 from ..stages.photons import PhotonCatch
-from ..stages.receptive import RetinaClass, center_surround, opponent_retina
+from ..stages.receptive import RetinaClass, center_surround, opponent_retina, rod_pathway
 from ..stages.spiking import PoissonSpikes
 
 DEFAULT_WINDOW_S = 0.1
 MIN_SPACING_PX = 1.0  # an image carries no detail finer than a pixel
 MIN_SIGMA_PX = 0.5
+
+
+@dataclass(frozen=True)
+class Rods:
+    """An eye's rods: the receptors of dim light. They join the cones' pathways.
+
+    Rods lie in a sheet of their own, as dense at every eccentricity, with a
+    zone round the centre of gaze that has none. They are always smaller than
+    a pixel here, so a model rod stands for the rods in a pixel (`with_rods`).
+    """
+
+    color: tuple[float, float, float]  # sensitivity over RGB; sums to 1, like a cone's row
+    spacing_deg: float  # between neighbouring rods
+    absent_within_deg: float  # radius of the rod-free zone round the centre of gaze
+    # Photons a rod catches for each photon a cone catches in the same white light
+    # (no unit). `run(photons_per_s=...)` gives the cone's catch.
+    catch: float
+    # A rod's own catch, in photons per second, at which its response range is
+    # halved. The range left is saturation / (saturation + catch): `rod_share`.
+    saturation_photons_per_s: float
+    # How far out of focus the rods' light is, in dioptres; used only by an eye
+    # that gives `chromatic_defocus_d` for its other receptor types.
+    defocus_d: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -61,7 +84,8 @@ class EyeParams:
     # The share of the light that reaches each receptor type through the eye's
     # own filters (lens, macular pigment), relative to the others. It scales the
     # photons a receptor catches, not its signal: a receptor adapts its gain to
-    # the light it gets. Empty = 1 for every type.
+    # the light it gets. Empty = 1 for every type. (`with_rods` puts the rods'
+    # `catch` here: a rod also catches fewer photons than a cone.)
     transmission: tuple[float, ...] = ()
     # For each receptor type, the radius in degrees of the zone round the centre of
     # gaze that has none of it (0 = found everywhere). Empty = all types everywhere.
@@ -75,6 +99,9 @@ class EyeParams:
     # How regular the spikes are: the variance of a spike count over its mean
     # (no unit). 1 = Poisson; a refractory period makes it less (`PoissonSpikes`).
     fano: float = 1.0
+    # The eye's rods, which work only when the run has a light level (`with_rods`).
+    # None = an eye modelled without rods.
+    rods: Rods | None = None
 
 
 def local_spacing_px(params: EyeParams, field: VisualField, positions: np.ndarray,
@@ -210,6 +237,16 @@ def blur_sigmas_deg(params: EyeParams):
                  for defocus in params.chromatic_defocus_d)
 
 
+def receptor_stages(params: EyeParams, field: VisualField, mosaic: Mosaic) -> list:
+    """From the picture to one signal per receptor: colour, optics and the mosaic."""
+    size, n_types = field.size_px, len(params.receptor_names)
+    return [
+        ColorProjection(params.color_matrix, size),
+        OpticalBlur(field.to_px(np.asarray(blur_sigmas_deg(params))), n_types, size),
+        mosaic_sampling(mosaic, size),
+    ]
+
+
 def assemble(name: str, field: VisualField, params: EyeParams,
              description: str, citations: tuple[str, ...], density: float = 1.0,
              neuron_density: float = 1.0) -> Pipeline:
@@ -237,12 +274,7 @@ def assemble(name: str, field: VisualField, params: EyeParams,
         retina = center_surround(mosaic, max(sigma_center, MIN_SIGMA_PX), sigma_surround,
                                  params.surround_weight)
         cells = mosaic
-    stages = [
-        ColorProjection(params.color_matrix, size),
-        OpticalBlur(field.to_px(np.asarray(blur_sigmas_deg(params))), n_types, size),
-        mosaic_sampling(mosaic, size),
-        retina,
-    ]
+    stages = [*receptor_stages(params, field, mosaic), retina]
     if params.cortex_sf_cpd:
         # A wavelength under two pixels is beyond what the image can carry.
         gains = params.cortex_gains or (1.0,) * len(params.cortex_sf_cpd)
@@ -287,6 +319,70 @@ def fixate(pipeline: Pipeline, looks: int) -> Pipeline:
     stages = [EyeShifts(offsets, channels, size)]
     stages += [PerLook(stage, looks) for stage in pipeline.linear_stages]
     return replace(pipeline, stages=(*stages, *pipeline.pointwise_stages))
+
+
+def rod_share(rods: Rods, photons_per_s: float) -> float:
+    """How much of the shared pathway the rods have in light of this level.
+
+    `photons_per_s` is a cone's catch at white, as for `run`; a rod catches
+    `rods.catch` of it. A rod's response range shrinks as the light grows:
+    what is left is saturation / (saturation + its catch), which is 1 in the
+    dark, a half at `saturation_photons_per_s` and 0 in unlimited light. The
+    cones have the rest of the pathway. It is one number for a run, set from
+    the light before the picture is seen, so every stage stays linear.
+    """
+    return rods.saturation_photons_per_s / (rods.saturation_photons_per_s
+                                            + rods.catch * photons_per_s)
+
+
+def with_rods(pipeline: Pipeline, photons_per_s: float) -> Pipeline:
+    """The eye with its rods at work, as far as light of this level leaves them.
+
+    An eye modelled without rods is returned as it is. Otherwise the rods
+    become one more receptor type: a row of the colour matrix, a blur, and a
+    model rod at every position that stands for a pixel of receptors and is
+    not wholly inside the rod-free zone (the rules of `build_mosaic`; a
+    position that holds a single cone gets no rod). A model rod stands for
+    the rods in its pixel. The cones come first in the mosaic, as they were.
+
+    A `rods` stage straight after the mosaic then mixes the rods round each
+    cone into that cone's signal (`rod_pathway`, `rod_share`), pooled over the
+    eye's centre size and at least half a pixel. Rods have no cells of their
+    own: the retina, the cortex and the spikes are the eye's, unchanged.
+    """
+    params: EyeParams = pipeline.metadata["params"]
+    rods = params.rods
+    if rods is None:
+        return pipeline
+    field, density = pipeline.field, pipeline.metadata["density"]
+    n_cones = len(params.receptor_names)
+
+    def also(values, of_rods, default):
+        return (*(values or (default,) * n_cones), of_rods)
+
+    seen = replace(
+        params, rods=None, receptor_names=(*params.receptor_names, "rod"),
+        color_matrix=(*params.color_matrix, rods.color),
+        type_fractions=(*params.type_fractions, 0.0),  # rods take no place in the cones' lattice
+        chromatic_defocus_d=(also(params.chromatic_defocus_d, rods.defocus_d, 0.0)
+                             if params.chromatic_defocus_d else ()),
+        transmission=also(params.transmission, rods.catch, 1.0),
+        absent_within_deg=also(params.absent_within_deg, rods.absent_within_deg, 0.0),
+        retina_classes=tuple(replace(item, weights=(*item.weights, 0.0))
+                             for item in params.retina_classes))
+    mosaic, _ = build_mosaic(seen, field, density)
+    order = np.argsort(mosaic.types == n_cones, kind="stable")  # cones first, in their order
+    mosaic = Mosaic(mosaic.positions[order], mosaic.types[order], mosaic.n_types)
+    rods_in_pixel = density * (MIN_SPACING_PX / field.to_px(rods.spacing_deg)) ** 2
+    cones_each = pipeline.metadata["receptors_each"]
+    each = np.concatenate([cones_each, np.full(len(mosaic) - len(cones_each), rods_in_pixel)])
+    joined = rod_pathway(mosaic, n_cones, rod_share(rods, photons_per_s),
+                         max(field.to_px(params.center_sigma_deg), MIN_SIGMA_PX))
+    # The eye's own first three stages are the cones' `receptor_stages`.
+    stages = (*receptor_stages(seen, field, mosaic), joined, *pipeline.stages[3:])
+    return replace(pipeline, stages=stages,
+                   metadata={**pipeline.metadata, "params": seen, "mosaic": mosaic,
+                             "receptors_each": each})
 
 
 def lit(pipeline: Pipeline, photons_per_s: float, window_s: float) -> Pipeline:

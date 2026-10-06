@@ -11,7 +11,7 @@ from .core.field import VisualField
 from .core.metrics import psnr, ssim
 from .core.pipeline import NeuralCode, Pipeline
 from .core.registry import species
-from .species.eye import fixate, lit
+from .species.eye import fixate, lit, with_rods
 
 LAM_FLOOR = 1e-4  # regularization when there is no noise
 NOISE_GAIN = 10.0  # lam = LAM_FLOOR + NOISE_GAIN * (noise variance of the linear drive)
@@ -133,6 +133,8 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
     light the receptors' own signal is noisy (`lit`). None is unlimited light,
     with no photon noise. For a human cone, 1 cd/m2 seen through a 3 mm pupil
     is about 900 photons a second: sunlight is about 1e7, a lit room 1e5.
+    An eye that has rods uses them at a light level, as far as that light leaves
+    them unsaturated (`with_rods`): for the human eye, from about 1e4 down.
     `noise=False` gives the noise-free code, with neither spike nor photon noise.
     """
     if window_ms <= 0:
@@ -154,7 +156,7 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
                               float(neuron_density))
     look_s = window_ms / 1000.0 / looks
     if photons_per_s is not None:
-        pipeline = lit(pipeline, photons_per_s, look_s)
+        pipeline = lit(with_rods(pipeline, photons_per_s), photons_per_s, look_s)
     if looks > 1:
         pipeline = fixate(pipeline, looks)
     pipeline = pipeline.replace(pipeline.pointwise_stages[-1].lasting(look_s))

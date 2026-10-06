@@ -3,7 +3,7 @@ from ..core.field import VisualField
 from ..core.pipeline import Pipeline
 from ..core.registry import species
 from ..stages.receptive import RetinaClass
-from .eye import EyeParams, assemble
+from .eye import EyeParams, Rods, assemble
 
 DESCRIPTION = (
     "Humans have three cone types (L, M, S) packed most densely at the fovea, "
@@ -48,6 +48,13 @@ CITATIONS = (
     "Neurosci 15:86-92.",
     "Gjorgjieva J, Sompolinsky H, Meister M (2014). Benefits of pathway splitting in "
     "sensory coding. J Neurosci 34:12127-12144.",
+    "Pattanaik SN, Ferwerda JA, Fairchild MD, Greenberg DP (1998). A multiscale model "
+    "of adaptation and spatial vision for realistic image display. SIGGRAPH 98:287-298.",
+    "Thomas MM, Lamb TD (1999). Light adaptation and dark adaptation of human rod "
+    "photoreceptors measured from the a-wave of the electroretinogram. J Physiol "
+    "518:479-496.",
+    "Aguilar M, Stiles WS (1954). Saturation of the rod mechanism of the retina at "
+    "high levels of stimulation. Optica Acta 1:59-65.",
 )
 
 # L cones for each M cone. Two is near the average; among people with normal
@@ -64,6 +71,46 @@ def cone_fractions(lm_ratio: float) -> tuple[float, float, float]:
     middle = (1.0 - S_FRACTION) / (1.0 + lm_ratio)
     return (lm_ratio * middle, middle, S_FRACTION)
 
+
+# Rods: about 92 million of them against 4.6 million cones (Curcio et al. 1990).
+# They work in dim light, carry no colour, and join the cones' pathways.
+RODS = Rods(
+    # The rods' sensitivity (the scotopic luminosity function, peak near 500 nm)
+    # over the display's primaries. Pattanaik et al. (1998) fit it from the CIE
+    # tristimulus values: -0.702 X + 1.039 Y + 0.433 Z. Through the standard
+    # matrix from linear sRGB to XYZ that is -0.060 R + 0.544 G + 0.360 B. A
+    # negative weight is not a sensitivity, so red is set to 0 (an
+    # approximation of this work), and the row is scaled to sum to 1 like the
+    # cones' rows. Like them it is applied to the picture as stored.
+    color=(0.0, 0.602, 0.398),
+    # Along the ring where rods are densest there are 120,000 to 177,000 per
+    # mm2 (Curcio et al. 1990, as quoted by later papers; the paper itself was
+    # not read for this work). 120,000 per mm2 at 0.28 mm per degree (Curcio's
+    # 0.350 mm for 1.25 degrees) is 9,400 per square degree: a spacing of
+    # 0.0103 degrees. One density for the whole sheet is a simplification: real
+    # rods thin out towards the centre and the far periphery.
+    spacing_deg=0.0103,
+    # The rod-free zone is 0.350 mm, or 1.25 degrees, across (Curcio et al.
+    # 1990, abstract). Its radius.
+    absent_within_deg=0.625,
+    # One scotopic troland is about 8.6 photons absorbed per rod per second
+    # (Thomas & Lamb 1999: 70 trolands is about 600 a second), where one
+    # photopic troland is about 125 per cone (the mean of the L and M figures
+    # below). White light has about 2.3 scotopic trolands for each photopic one
+    # (quoted values for daylight sources run from 2.1 to 2.4; not checked
+    # against a measured display spectrum). 8.6 * 2.3 / 125.
+    catch=0.16,
+    # Against a steady background a human rod's largest response falls as
+    # I0 / (I0 + background), with I0 about 70 scotopic trolands, or 600
+    # photons absorbed per rod per second (Thomas & Lamb 1999, abstract). By
+    # that rule a rod has 3% of its range left at 2,000 scotopic trolands,
+    # where Aguilar & Stiles (1954) found the rod system saturated.
+    saturation_photons_per_s=600.0,
+    # By the chromatic eye's formula below, 498 nm (the rod pigment's peak) is
+    # 0.37 dioptres from the 555 nm in focus. The focus does not move and the
+    # pupil does not open in the dark here; in a real eye both do.
+    defocus_d=0.37,
+)
 
 PARAMS = EyeParams(
     receptor_names=("L", "M", "S"),
@@ -151,6 +198,7 @@ PARAMS = EyeParams(
     # value could be checked against a source for this work (from memory, a
     # macular density of 0.35 at 460 nm and a lens density of a few tenths, so
     # roughly 0.3 to 0.5 for S). Measured at 0.3: -0.2 dB in a lit room.
+    rods=RODS,
 )
 
 # Parasol cells: the retina's other main class of ganglion cell, about 10% of
