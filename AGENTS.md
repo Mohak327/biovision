@@ -354,7 +354,11 @@ Each of these came out of the prototype. Do not undo one without re-measuring.
   so every earlier result is bit-identical. The dark picture is not
   colourless: the cones' rows stay in the code, the decoder still fits them,
   and their noise shows as coloured speckle. A stronger colour prior
-  (`chroma_weight=10`) lowered PSNR on the samples. The mouse has no rods here.
+  (`chroma_weight=10`) lowered PSNR on the samples. With ideal neurons
+  (`noise=False`) a light level used to change nothing; now the rods' share
+  follows it, and at 96 px the result is 41.44, 41.34, 40.82 and 26.20 dB at
+  1e5, 1e4, 1e3 and 1e2 (41.44 with no light level): in the dark the cones'
+  rows fall to the regularization floor. The mouse has no rods here.
 - **No S cones within 0.175 degrees of the centre of gaze (human), on**
   (phase 13; Curcio et al. 1991). Across 60 degrees the zone is smaller than a
   pixel and changes nothing. Two rules in the retina came with it and must

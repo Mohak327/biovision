@@ -1936,6 +1936,20 @@ through the shipped `run()`; its unset row reproduces the pinned 37.36 dB.
   raises SSIM (0.69 and 0.67). Neither was changed: the regularization rule
   is shared by every species and every earlier result.
 
+- **With ideal neurons a light level now changes the result, and in the dark
+  it costs a great deal.** `noise=False` has no photon noise, and before this
+  phase the light level then did nothing. The rods' share follows the light,
+  not the noise, so the noise-free eye in dim light is still mostly rods.
+  Human, 96 px, ideal neurons (`scripts/benchmark.py --photons`, 41.44 dB with
+  no light level): 41.44 dB at 1e6 and 1e5, 41.34 at 1e4, 40.82 at 1e3 and
+  **26.20 dB at 1e2** (SSIM 0.958; colour spread 0.86 of the original's). At
+  1e2 the cones' rows are scaled by 0.026, which puts them near the noise-free
+  regularization floor (`LAM_FLOOR`), so the colour they carry is partly given
+  up to the prior. That is the colourless night picture the brief expected,
+  and it appears only where there is no noise to fit. It is a 15 dB loss with
+  ideal neurons at one level, outside what guard 2 measured (real neurons);
+  128 px was not run with ideal neurons.
+
 **What was rejected, with numbers** (prototypes at 96 px, same benchmark).
 
 | Variant | 1e6 | 1e5 | 1e4 | 1e3 | 1e2 | Why not |
@@ -1966,7 +1980,9 @@ cone eye's cost, and is the real circuit.
    (41.44 and 42.14) were not run again.
 2. *Rods never cost more than 0.2 dB and gain more than 1 dB somewhere.* The
    worst change is -0.01 dB (1e6, 128 px); the best +2.01 dB at 128 px and
-   +2.16 at 96 px, both at 1e2. So rods are on for the human eye.
+   +2.16 at 96 px, both at 1e2. So rods are on for the human eye. This is
+   with real neurons, as the guard was measured; with ideal neurons the eye
+   with rods is 15 dB below the eye without at 1e2 (above).
 3. *Exact transposes.* `rod_pathway` is one sparse matrix (tested at relative
    1e-10); the composed operator of the lit human eye with rods is tested at
    1e-9. No pointwise stage was added or changed.
@@ -2044,7 +2060,7 @@ colour matrix after it; the cones come first in the receptors' responses so
 the retina view should draw as before, but no server was started. Figures
 from `biovision report` with `--photons` for the human eye. Rods with
 several looks beyond a test that it runs and converges. Ideal neurons with a
-light level. 256 px and above. Narrow fields, where positions hold single
+light level at 128 px. 256 px and above. Narrow fields, where positions hold single
 cones and so get no rods. One seed.
 
 Sources: Curcio CA, Sloan KR, Kalina RE, Hendrickson AE (1990), as above.
