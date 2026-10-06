@@ -60,14 +60,14 @@ and receptor density). Add `--density 4` or `--neuron-density 4` to give the
 eye more receptors or cortex cells than the real animal. Add `--looks 4` to
 let the eye look four times within the same spike window, moved a little each
 time as a real eye is (fixational eye movements); the looks are combined in
-one reconstruction. At 128 px this adds about 1 dB for the human eye with real
+one reconstruction. At 128 px this adds about 4 dB for the human eye with real
 neurons, and detail for the mouse and fly once spike noise is low, and it
 takes about as many times longer per solver step as there are looks. Add
 `--photons 1e5` to set the light level: the photons a receptor catches each
 second where the picture is white. Light arrives as photons, so in dim light
 the receptors' own signal is noisy. For a human cone, sunlight is about 1e7,
-a lit room 1e5 and dusk 1e4; the human reconstruction loses nothing in
-sunlight, about 1 dB in a lit room and 5 dB at dusk. Without the option the
+a lit room 1e5 and dusk 1e4; the human reconstruction loses 0.1 dB in
+sunlight, about 5 dB in a lit room and 11 dB at dusk. Without the option the
 light is unlimited. With no `--image`, a bundled sample is used.
 
 From Python:
@@ -94,8 +94,13 @@ stages:
    eye these cells combine the cone types into brightness, red-green and
    blue-yellow channels, each with its own gain.
 5. `gabor` (mammals only): V1 simple cells at several scales and orientations.
-6. `rate`: a threshold-linear firing rate around a resting rate.
-7. `spikes`: Poisson spike counts in a time window.
+6. `rate`: a threshold-linear firing rate. For the human and the mouse each
+   signal has an ON cell, which fires for increments, and an OFF cell, which
+   fires for decrements, both nearly silent at rest; the reconstruction uses
+   their difference. The fly has one cell around a resting rate.
+7. `spikes`: Poisson spike counts in a time window. An eye's parameters can
+   make the counts more regular than Poisson (`EyeParams.fano`); no species
+   does by default.
 
 Decoding undoes the pointwise stages, then solves
 
@@ -153,6 +158,15 @@ def build(field: VisualField) -> Pipeline:
 - The lens and macular pigment, the jitter of real cone positions, and how the
   pupil opens in dim light have parameters or notes but no values: none could
   be supported from a source.
+- A cell has no top firing rate: an ON or OFF cell can be driven past the
+  range its gain was chosen for and loses nothing by it. A real cell saturates.
+- The spikes that are counted are the cortex cells' for the human and the
+  mouse. The retina's own cell types are not separate cells with their own
+  spikes: a parasol class exists (`human.PARASOL`) and is off, because across
+  60 degrees its larger field is smaller than a pixel; spike counts are
+  Poisson, because the published regularity is for retinal cells; and noise
+  shared between neighbouring cells is not modelled (measured: 0.2 dB or less).
+  See phases 6 and 8 in the audit document.
 - Still images only; no motion pathways.
 
 ## Tests

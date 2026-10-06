@@ -80,7 +80,12 @@ image (size, size, 3)
 
 Stage order for every species: `color`, `optics`, `mosaic`, `center_surround`,
 `gabor` (mammals only, and only if a wavelength fits the image), `rate`,
-`spikes`. For the human eye the `center_surround` stage makes three classes
+`spikes`. For the human and the mouse the `rate` stage makes an ON and an OFF
+cell for each signal (`OnOffPair` in `stages/nonlinearity.py`), so the rates
+and the spike counts have a last axis of two; its inverse gives the decoder
+one signed drive, `(on - off) / (swing * gain)`, and the operator is the same.
+`Pipeline.n_neurons` counts signals (the rows of the operator);
+`metrics["neurons"]` counts cells. For the human eye the `center_surround` stage makes three classes
 of cell at each position (luminance, red-green, blue-yellow); the cells'
 positions and classes are in `pipeline.metadata["cells"]`.
 
@@ -193,6 +198,34 @@ Each of these came out of the prototype. Do not undo one without re-measuring.
 - **Threshold-linear firing rate.** A saturating curve cannot be inverted on
   noisy spike counts without bias, and its tangent approximation cost 14 dB
   even without noise.
+- **Separate ON and OFF cells for the human and the mouse** (phase 6a;
+  `EyeParams.spontaneous_hz`, 1 spike/s; None = one cell around `rest_hz`, which
+  the fly keeps). A cell around a resting rate spends nearly all its spikes on
+  "no change"; a rectified pair carries the same signal with a fortieth of the
+  spikes per cell. Human, 128 px: 29.97 to 36.26 dB with real neurons, 40.76 to
+  42.14 with ideal ones (the pair clips nothing). Mouse: 12.93 to 14.14 dB.
+  The spontaneous rate adds to the rectified drive, so `on - off` is the
+  signal everywhere and the inverse is linear in the counts; the form in which
+  a decrement suppresses the ON cell has a kinked inverse and was not built.
+  The pair shares the real cells one cell stood for, so the spike budget is
+  unchanged. The gains were not raised, though a pair cannot clip: "clipped"
+  now means past the point where one cell would stop, `1 + gain * x <= 0`.
+- **The parasol class is defined and off** (phase 6b; `human.PARASOL`,
+  `RetinaClass.center_scale`). Across 60 degrees its centre (3 times a midget
+  cell's) is under the half-pixel floor like the midget centre, so it is a
+  second luminance class with more gain. At the published gain (8 times) 1.4%
+  of signals are past the range and ideal neurons lose 7 dB; at a gain of 2 it
+  adds 0.9 dB with real neurons, which is 60% more spikes, not a cell type.
+- **Spike counts stay Poisson** (phase 8a; `EyeParams.fano`, 1 for every
+  species). Below 1 the counts are binomial over the slots a refractory
+  period leaves, with the same mean; the decoder reads the count variance
+  from the spiking stage. 0.5 gives the human eye +1.5 dB. It is off because
+  the published Fano factors are for retinal ganglion cells, and the cells
+  whose spikes are counted here are cortical (human, mouse), where counts are
+  not more regular than Poisson, or do not spike (fly).
+- **Noise shared by neighbouring cells was measured and not built** (phase
+  8b). A correlation of 0.1, 0.2 and 0.4 between adjacent cells of one kind
+  costs 0.03, 0.16 and 0.38 dB with the decoder as it is.
 - **Gradient prior.** `-laplacian` (the 1/f^2 natural-image prior). The squared
   Laplacian let low-frequency noise through.
 - **Chroma prior.** Mouse and fly have no red-sensitive receptor. The prior
@@ -285,7 +318,9 @@ Each of these came out of the prototype. Do not undo one without re-measuring.
   `photons_per_s` is photons per real receptor per second at white; a model
   receptor catches for the real ones it stands for (`receptors_each`). Human,
   128 px: -0.03 dB in sunlight (1e7), -0.15 at 1e6, -1.1 in a lit room (1e5),
-  -5 at dusk (1e4). The regularization counts the photon noise (one fresh
+  -5 at dusk (1e4), all with one cell around a resting rate; with ON and OFF
+  cells (phase 6a) it is -0.12, -4.9 and -10.9 dB at 1e7, 1e5 and 1e4, because
+  the spikes no longer hide the light's noise. The regularization counts the photon noise (one fresh
   draw of it, passed through the later stages): +0.2 dB at 1e5 and +1.1 at
   1e4 against leaving it out. Unlimited light is the default because a
   sunlight figure exists only for human L and M cones, and any default would
@@ -311,28 +346,33 @@ At 128 px across 60 degrees, astronaut sample:
 
 | Species | Neurons | PSNR, no noise | PSNR, 100 ms spikes |
 |---|---|---|---|
-| Human | 369,900 | about 35 dB | about 29.5 dB |
-| Mouse | 9,864 | about 15 dB | about 12 dB |
+| Human | 739,800 | about 38 dB | about 35 dB |
+| Mouse | 19,728 | about 14.5 dB | about 13.5 dB |
 | Fly | 504 | about 13 dB | about 13 dB |
 
-PSNR for mouse and fly is dominated by the missing red channel. The human
-decode takes about 10 seconds at 128 px; mouse and fly take about 1 second.
+The human and the mouse have an ON and an OFF cell for each signal, so their
+neuron counts are twice the number of signals (369,900 and 9,864). PSNR for
+mouse and fly is dominated by the missing red channel. The human decode takes
+about 25 seconds at 128 px; mouse and fly take about 1 second.
 
 Human eye at larger sizes, mean of the three samples (`scripts/benchmark.py`):
 
 | Size | PSNR, no noise | PSNR, 100 ms spikes | Time per run | Peak memory |
 |---|---|---|---|---|
-| 96 px | 40.1 dB | 30.6 dB | 7 s real, 9 s ideal | 0.31 GB (before phase 2b) |
-| 128 px | 40.8 dB | 30.0 dB | 13 s real, 20 s ideal | 0.67 GB (before phase 2b) |
-| 256 px | 43.6 dB | 31.2 dB | 58 s real, 101 s ideal | 1.29 GB |
+| 96 px | 41.4 dB | 37.4 dB | 12 s real, 10 s ideal | 0.31 GB (before phase 2b) |
+| 128 px | 42.1 dB | 36.3 dB | 24 s real, 22 s ideal | 0.67 GB (before phase 2b) |
+| 256 px | 43.6 dB (before phase 6) | 31.2 dB (before phase 6) | 58 s real, 101 s ideal (before phase 6) | 1.29 GB |
 | 512 px | not measured | not measured | not measured | 3.3 GB to build, 2.3 GB to solve |
 
-The 96 and 128 px rows are as measured after chromatic aberration went in
-(phase 9): 30.59 and 40.13 dB at 96 px, 29.97 and 40.76 at 128 (before: 30.63
-and 40.11, 30.00 and 40.74). The 256 px row was not measured again.
+The 96 and 128 px rows are as measured with separate ON and OFF cells (phase
+6a): 37.36 and 41.44 dB at 96 px, 36.26 and 42.14 at 128. With one cell
+around a resting rate, after phase 9, they were 30.59 and 40.13, 29.97 and
+40.76. The 256 px row and the memory column were not measured again.
 
-The human eye has 245,484 neurons at 96 px, 369,900 at 128, 1,752,300 at 256
-and 3,595,500 at 512. 512 px is not finished: the eye builds, but a solve
+The human eye has 490,968 neurons at 96 px and 739,800 at 128: an ON and an
+OFF cell for each of 245,484 and 369,900 signals. At 256 and 512 px it has
+1,752,300 and 3,595,500 signals, so twice as many cells; neither was run with
+the pair. 512 px is not finished: the eye builds, but a solve
 stopped at the 1000-step limit and the benchmark was cut short by the
 machine's memory. See phase 2b in the audit document.
 
@@ -341,27 +381,32 @@ samples, seed 0 (`scripts/benchmark.py --looks 4`):
 
 | Species | Real, 1 look | Real, 4 looks | Ideal, 1 look | Ideal, 4 looks | SSIM ideal, 1 to 4 looks |
 |---|---|---|---|---|---|
-| Human | 30.0 dB | 30.9 dB | 40.7 dB | 50.7 dB | 0.995 to 1.000 |
-| Mouse | 12.9 dB | 13.0 dB | 14.95 dB | 15.3 dB | 0.57 to 0.67 |
+| Human | 36.3 dB | 40.7 dB | 42.1 dB | 61.0 dB | 0.996 to 1.000 |
+| Mouse | 14.1 dB | 14.15 dB | 14.95 dB | 15.3 dB | 0.57 to 0.67 |
 | Fly | 13.7 dB | 13.7 dB | 14.25 dB | 14.8 dB | 0.35 to 0.47 |
 
-With real neurons the mouse and fly do not gain at 100 ms: they are limited by
-spike noise, and the mouse's figure moves by 0.2 dB from seed to seed. The
-human run with four looks takes about 30 s (15 s with one).
+The human and mouse rows are with ON and OFF cells (phase 6a); before, the
+human row was 30.0, 30.9, 40.7 and 50.7 dB. With less spike noise the looks
+are worth more to the human eye: +4.4 dB with real neurons, where they gave
++0.9. With real neurons the mouse and fly do not gain at 100 ms: they are
+limited by spike noise, and the mouse's figure moves by 0.2 dB from seed to
+seed. The human run with four looks takes about 35 s (25 s with one).
 
 In dimmer light (`--photons`, photons per cone per second at white), human
 eye, real neurons, mean of the three samples, seed 0
 (`scripts/benchmark.py --photons 1e5`):
 
-| Light | Photons | 96 px | 128 px |
-|---|---|---|---|
-| Unlimited (default) | | 30.59 dB | 29.97 dB |
-| Sunlight, 10,000 cd/m2 | 1e7 | 30.58 dB | 29.94 dB |
-| 1,000 cd/m2 | 1e6 | 30.45 dB | 29.81 dB |
-| A lit room, 100 cd/m2 | 1e5 | 29.26 dB | 28.86 dB |
-| Dusk, 10 cd/m2 | 1e4 | 24.87 dB | 24.91 dB |
+| Light | Photons | 128 px | 128 px, before phase 6a | 96 px, before phase 6a |
+|---|---|---|---|---|
+| Unlimited (default) | | 36.26 dB | 29.97 dB | 30.59 dB |
+| Sunlight, 10,000 cd/m2 | 1e7 | 36.14 dB | 29.94 dB | 30.58 dB |
+| 1,000 cd/m2 | 1e6 | not measured | 29.81 dB | 30.45 dB |
+| A lit room, 100 cd/m2 | 1e5 | 31.40 dB | 28.86 dB | 29.26 dB |
+| Dusk, 10 cd/m2 | 1e4 | 25.34 dB | 24.91 dB | 24.87 dB |
 
-The luminances assume a 3 mm pupil and about 125 photons per cone per second
+With ON and OFF cells the spikes carry far less noise, so the light is the
+limit sooner: a lit room now costs 4.9 dB where it cost 1.1, and from there
+down the result is nearly what it was. The luminances assume a 3 mm pupil and about 125 photons per cone per second
 per troland. The model has no rods, so the dusk row is a cone-only eye.
 
 ## Adding a species

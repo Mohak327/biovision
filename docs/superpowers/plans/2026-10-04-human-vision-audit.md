@@ -2,9 +2,11 @@
 
 2026-10-04. An audit of what the human model computes against what the human
 eye and early cortex compute, the additions worth making, their measured
-gains, and the plan to build them. Phases 1, 2, 3, 9, 10 and 13 are implemented;
-phases 5 and 12 were examined and not built. See "Phase 1 result" and "Phase
-results" below. The other phases are not started.
+gains, and the plan to build them. Phases 1, 2, 3, 6a, 9, 10 and 13 are
+implemented; 6b and 8a are built and off by default; phases 5, 8b and 12 were
+examined and not built. See "Phase 1 result" and "Phase results" below. The
+other phases are not started (of phase 6, more cortex scales went in with
+phase 2b).
 
 ## The problem
 
@@ -1772,3 +1774,33 @@ Sources (from memory, not re-read): Mastronarde DN (1983). Correlated firing
 of cat retinal ganglion cells. I. J Neurophysiol 49:303-324. Pillow JW,
 Shlens J, Paninski L, et al. (2008). Spatio-temporal correlations and visual
 signalling in a complete neuronal population. Nature 454:995-999.
+
+
+### After phases 6 and 8: looks and light, measured again (2026-10-05)
+
+Separate ON and OFF cells changed how much spike noise there is, so the two
+earlier options that trade against spike noise were run again with the default
+eye (`scripts/benchmark.py`, 128 px, 60 degrees, mean of the three samples,
+real neurons 100 ms seed 0; one run each).
+
+| Human, 128 px | Real PSNR | Real SSIM | Ideal PSNR | Steps, real / ideal | Before phase 6a, real / ideal |
+|---|---|---|---|---|---|
+| One look, unlimited light (default) | 36.26 dB | 0.971 | 42.14 dB | 502 / 560 | 29.97 / 40.76 dB |
+| Four looks (`--looks 4`) | 40.70 dB | 0.987 | 60.96 dB | 180 / 122 | 30.89 / 50.69 dB |
+| Sunlight (`--photons 1e7`) | 36.14 dB | 0.970 | | 503 | 29.94 dB |
+| A lit room (`--photons 1e5`) | 31.40 dB | 0.909 | | 375 | 28.86 dB |
+| Dusk (`--photons 1e4`) | 25.34 dB | 0.784 | | 205 | 24.91 dB |
+
+- **Looks are worth more**: +4.4 dB with real neurons, where they gave +0.9.
+  The spikes are no longer what limits the eye, so what the shifted looks add
+  shows.
+- **Light is the limit sooner**: a lit room costs 4.9 dB where it cost 1.1, and
+  dusk 10.9 where it cost 5. In absolute terms the dim rows have barely moved
+  (25.3 against 24.9 dB at dusk): there the photons set the result, whatever
+  the cells do. Sunlight costs 0.12 dB.
+- Mouse, four looks: 14.15 dB real and 15.29 ideal (14.14 and 14.95 with one).
+  Fly, one look: 13.74 and 14.25 dB, as before these phases.
+
+The benchmark's "ideal" has neither spike nor photon noise, so the photon rows
+have no ideal figure. 96 px, 1e6 photons and other numbers of looks were not
+run again.
