@@ -145,13 +145,14 @@ class Decoder:
         return y
 
     def noise_variance(self, code: NeuralCode) -> float:
-        """Mean variance of the linear drive, assuming Poisson spike counts.
+        """Mean variance of the linear drive that the spike noise causes.
 
-        A Poisson count has variance equal to its mean. The pointwise inverses
-        are affine, so each count's variance reaches the drive scaled by the
-        square of the drive's slope against that count. Where several cells
-        carry one signal (an ON and an OFF cell, on the code's last axis),
-        their noise is independent and the scaled variances add.
+        The last pointwise stage, which makes the counts, gives each count's
+        variance (a Poisson count's is its mean). The pointwise inverses are
+        affine, so that variance reaches the drive scaled by the square of the
+        drive's slope against the count. Where several cells carry one signal
+        (an ON and an OFF cell, on the code's last axis), their noise is
+        independent and the scaled variances add.
         """
         signals = self.pipeline.out_shape
         cells = code.responses.shape[len(signals):]  # the cells that carry one signal
@@ -159,9 +160,10 @@ class Decoder:
         probes = np.vstack([np.zeros(n_cells), np.eye(n_cells)]).reshape(n_cells + 1, *cells)
         drive = self.linear_drive(probes)  # with no spikes, then with one spike in each cell
         slopes = drive[1:] - drive[0]
-        counts = np.moveaxis(code.responses.reshape(*signals, n_cells), -1, 0)
-        return float(sum(float(np.mean(count)) * slope**2
-                         for count, slope in zip(counts, slopes)))
+        variance = self.pipeline.pointwise_stages[-1].variance(code.responses)
+        variance = np.moveaxis(variance.reshape(*signals, n_cells), -1, 0)
+        return float(sum(float(np.mean(of_cell)) * slope**2
+                         for of_cell, slope in zip(variance, slopes)))
 
     def decode(self, code: NeuralCode, on_iteration=None) -> Reconstruction:
         """Reconstruct the image. If given, `on_iteration(k, image)` receives the

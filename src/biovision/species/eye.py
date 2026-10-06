@@ -72,6 +72,9 @@ class EyeParams:
     # Separate ON and OFF cells: the rate, in spikes/s, at which each fires with
     # no signal. None = one cell around `rest_hz` stands for the pair.
     spontaneous_hz: float | None = None
+    # How regular the spikes are: the variance of a spike count over its mean
+    # (no unit). 1 = Poisson; a refractory period makes it less (`PoissonSpikes`).
+    fano: float = 1.0
 
 
 def local_spacing_px(params: EyeParams, field: VisualField, positions: np.ndarray,
@@ -260,7 +263,7 @@ def assemble(name: str, field: VisualField, params: EyeParams,
         # resting rate: (real_cells / 2) * (2 * rest_hz) is the same swing.
         rate = OnOffPair(params.rest_hz * real_cells, params.contrast_gain,
                          params.spontaneous_hz * real_cells / 2.0)
-    stages += [rate, PoissonSpikes(DEFAULT_WINDOW_S)]
+    stages += [rate, PoissonSpikes(DEFAULT_WINDOW_S, params.fano)]
     return Pipeline(name, field, tuple(stages), description, citations,
                     {"params": params, "mosaic": mosaic, "cells": cells,
                      "cells_per_position": cells_per_position,

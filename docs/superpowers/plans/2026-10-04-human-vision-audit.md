@@ -1577,3 +1577,134 @@ cells across the primate retina. Vision Res 35:7-24. Kaplan E, Shapley RM
 (1986). The primate retina contains two types of ganglion cells, with high and
 low contrast sensitivity. PNAS 83:2755-2757. Dacey DM, Petersen MR (1992), as
 above. Dacey DM (2000), as above.
+
+
+### Phase 8a: refractory, sub-Poisson spike counts (2026-10-05)
+
+**Outcome: built, and left at Poisson (`fano = 1`) for every species.** It
+helps (+1.5 dB for the human eye at a Fano factor of 0.5), and it is off
+because the figure it needs is published for a cell the model does not count
+spikes from. See "Default" below.
+
+**What was built.**
+
+- **`PoissonSpikes(window_s, fano=1.0)`** (`stages/spiking.py`). `fano` is the
+  variance of a count over its mean (no unit), above 0 and at most 1. At 1 the
+  draw is `rng.poisson`, the same call as before, so every seeded result is
+  the same bit for bit (a test compares the draws).
+- **The distribution below 1.** A cell cannot fire twice within its refractory
+  period, so a window holds a limited number of spikes. The window is cut into
+  n = ceil(mean / (1 - fano)) slots and each holds a spike with probability
+  mean / n: **counts ~ Binomial(n, mean / n)**, drawn with `rng.binomial`
+  from the run's seeded generator. Why this one: the counts are whole numbers
+  with a ceiling, which is what a refractory period gives; the mean is exactly
+  the Poisson mean for every rate; it needs one draw per cell; and it tends to
+  Poisson as `fano` tends to 1. Its variance is `mean * (1 - mean / n)`: that
+  is `fano * mean` exactly where mean / (1 - fano) is a whole number, and
+  otherwise above it by less than (1 - fano)^2 of a spike (0.25 at 0.5),
+  because the number of slots is rounded up.
+- **`variance = fano * mean` cannot hold at low rates, for any distribution.**
+  A whole-number count with mean m below 1 has a variance of at least
+  m (1 - m): a spike or none. So a cell that expects fewer than 1 - fano
+  spikes cannot have a Fano factor of `fano`; the binomial gives it one slot,
+  the least variance possible, and it fires as irregularly as Poisson. That
+  matches a real cell, whose refractory period does nothing at low rates. It
+  matters here since phase 6a: an OFF cell in a bright patch expects only its
+  spontaneous spikes (4.1 a window for the human eye, 0.05 for the mouse).
+- **`PoissonSpikes.variance(counts)`**: the stage's estimate of each count's
+  variance from the count, `count * (1 - count / n(count))`; for Poisson it is
+  the counts themselves, as before. `Decoder.noise_variance` takes the count
+  variance from the last pointwise stage in place of assuming Poisson, so the
+  regularization follows the Fano factor (a test holds it to the measured
+  variance of the drive at 30 spikes a cell). The estimate reads a lone spike
+  as a cell that expects one, so where cells expect far less than a spike it
+  comes out low, by up to the factor `fano`: for the mouse with `fano = 0.5`
+  the regularization halves (1.27e-2 to 6.4e-3) though most of its cells are
+  in the one-slot regime, where the noise has not changed.
+- **`PoissonSpikes.lasting(window_s)`**: the same cells counted over another
+  window. `run()` used to build a new `PoissonSpikes` for its window, which
+  would have dropped the Fano factor.
+- **`EyeParams.fano`**, default 1. Regularity belongs to the cells, so it is on
+  the eye and not an option of the run; nothing was added to `server.py` or
+  `cli.py`.
+
+**Measurements.** As built (`run()` with `EyeParams.fano` changed), 60
+degrees, mean of the three samples, real neurons 100 ms. Human: seed 0. Mouse
+and fly: mean of seeds 0 to 4. Ideal neurons have no spike noise and are
+unchanged by construction (not re-run).
+
+| Eye | Fano factor | Real PSNR | Real SSIM | lam | Steps |
+|---|---|---|---|---|---|
+| Human, 128 px | **1 (default)** | **36.26 dB** | 0.971 | 2.0e-4 | 502 |
+| | 0.5 | 37.76 dB | 0.980 | 1.5e-4 | 506 |
+| | 0.3 | 38.79 dB | 0.985 | 1.3e-4 | 508 |
+| Human, 96 px | 1 (default) | 37.36 dB | 0.985 | | 465 |
+| | 0.5 | 38.52 dB | 0.990 | 1.5e-4 | 491 |
+| Human, 128 px, one cell in place of the ON/OFF pair | 1 | 29.97 dB | 0.864 | 2.1e-3 | 237 |
+| | 0.5 | 31.48 dB | 0.898 | 1.1e-3 | 307 |
+| Mouse, 128 px | 1 (default) | 14.12 dB | 0.420 | 1.3e-2 | 33 |
+| | 0.5 | 14.26 dB | 0.431 | 6.4e-3 | 43 |
+| Fly, 128 px | 1 (default) | 13.75 dB | 0.311 | 8.6e-3 | 31 |
+| | 0.5 | 13.89 dB | 0.323 | 4.4e-3 | 34 |
+
+- Human: +1.5 dB at 0.5 and +2.5 at 0.3 (the roadmap guessed +1), with or
+  without the ON/OFF pair. Halving the noise variance is worth about what
+  doubling the looking time is.
+- Mouse: +0.14 dB, inside its seed spread (0.14 to 0.27 dB in phase 3). Its
+  cells expect 0.4 spikes on average, where no count can be more regular than
+  a spike or none.
+- Fly: +0.14 dB (seed spread 0.03): its cells fire hundreds of spikes, but it
+  is limited by its 504 cells and its missing red receptor, not by noise.
+
+**Default: Poisson for every species, and why that departs from the rule.**
+The roadmap's rule puts a feature that helps on for the species it is cited
+for. The figures are for retinal ganglion cells: Fano factors well under 1 in
+macaque ganglion cells (Uzzell & Chichilnisky 2004) and in salamander and
+rabbit ganglion cells (Berry, Warland & Meister 1997). The cells whose spikes
+this model counts are not those. For the human and the mouse they are cortical
+simple cells, and cortical spike counts are not sub-Poisson: their variance is
+about 1 to 1.5 times the mean (Tolhurst, Movshon & Dean 1983; Shadlen &
+Newsome 1998). For the fly they are lamina cells, which do not spike at all;
+its "spikes" stand for the noise of a graded signal. So there is no eye here
+for which the cited figure is the right one, and setting 0.5 on the human eye
+would add 1.5 dB on the strength of a number measured one stage earlier. To
+switch it on regardless: `fano=0.5` in `human.PARAMS`. It is the right
+setting for an eye stopped at the retina (`cortex_sf_cpd=()`), which no
+species is by default. A Fano factor above 1, which the cortical figures
+would call for, is rejected by the stage: it needs another distribution (a
+negative binomial would do) and was not asked for.
+
+**Guards.** With `fano = 1` every species is bit-identical: the 36 saved
+arrays (reconstructions, spike counts, regularization) compared equal after
+this change, and the pinned values hold. The decoder is one linear solve;
+`decode` was not edited. The stage's inverse is unchanged. 363 tests pass (16
+new in `tests/test_spike_statistics.py`).
+
+**Deviations from the brief.**
+
+- The default is off for the human eye (above).
+- The variance is `fano * mean` only up to the rounding of the slots, and not
+  at all below 1 - fano expected spikes, where no whole-number count can have
+  it.
+- The class is still called `PoissonSpikes`, though below 1 its counts are
+  binomial; renaming it would have touched every test that builds a pipeline.
+- Tests: the first was watched failing alone. The next nine were added in one
+  step by mistake and watched failing together before the code for them was
+  written; the test of `lasting` was written with its code and never seen to
+  fail. The decoder and eye tests were each watched failing first.
+
+**Not verified.** The Fano factors themselves (0.3 to 0.6 is the brief's
+range; the papers were not re-read, and the cortical figures are quoted from
+memory). Whether a real cell's regularity is well described by one Fano factor
+at every rate: with a fixed refractory period the Fano factor falls as the
+rate rises, and the binomial holds it constant. Several looks and photon noise
+with `fano` below 1 (a run with two looks is tested for keeping the factor,
+not measured). 256 px.
+
+Sources: Uzzell VJ, Chichilnisky EJ (2004). Precision of spike trains in
+primate retinal ganglion cells. J Neurophysiol 92:780-789. Berry MJ, Warland
+DK, Meister M (1997). The structure and precision of retinal spike trains.
+PNAS 94:5411-5416. Tolhurst DJ, Movshon JA, Dean AF (1983). The statistical
+reliability of signals in single neurons in cat and monkey visual cortex.
+Vision Res 23:775-785. Shadlen MN, Newsome WT (1998). The variable discharge
+of cortical neurons. J Neurosci 18:3870-3896.

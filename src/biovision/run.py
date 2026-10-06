@@ -12,7 +12,6 @@ from .core.metrics import psnr, ssim
 from .core.pipeline import NeuralCode, Pipeline
 from .core.registry import species
 from .species.eye import fixate, lit
-from .stages.spiking import PoissonSpikes
 
 LAM_FLOOR = 1e-4  # regularization when there is no noise
 NOISE_GAIN = 10.0  # lam = LAM_FLOOR + NOISE_GAIN * (noise variance of the linear drive)
@@ -158,7 +157,7 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
         pipeline = lit(pipeline, photons_per_s, look_s)
     if looks > 1:
         pipeline = fixate(pipeline, looks)
-    pipeline = pipeline.replace(PoissonSpikes(look_s))
+    pipeline = pipeline.replace(pipeline.pointwise_stages[-1].lasting(look_s))
     rng = np.random.default_rng(seed) if noise else None
     code = pipeline.encode(original.transpose(2, 0, 1), rng)
     on_iteration = None
