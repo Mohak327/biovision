@@ -1708,3 +1708,67 @@ PNAS 94:5411-5416. Tolhurst DJ, Movshon JA, Dean AF (1983). The statistical
 reliability of signals in single neurons in cat and monkey visual cortex.
 Vision Res 23:775-785. Shadlen MN, Newsome WT (1998). The variable discharge
 of cortical neurons. J Neurosci 18:3870-3896.
+
+
+### Phase 8b: correlated noise between neighbouring cells (2026-10-05)
+
+**Outcome: measured on a prototype, not built.** At a correlation of 0.1 to
+0.2 between adjacent cells the cost is 0.03 to 0.16 dB, under the 0.2 dB below
+which a feature with real complexity is recorded and left out. No code changed.
+
+**What was measured.** The human eye as it now is (ON and OFF cells, Poisson
+counts), 128 px, 60 degrees, the three samples, real neurons 100 ms. Each
+cell's count was drawn as the Poisson quantile of a standard normal number (a
+Gaussian copula), so every cell on its own has exactly the Poisson
+distribution it has today, and only the dependence between cells changes. The
+normal numbers of the cells of one kind (one cortex scale, orientation, phase,
+retinal class and sign, which lie on a square grid) were made of a private
+part and a part shared with their neighbours: white noise smoothed over the
+grid with a Gaussian one cell wide. ON and OFF cells, and cells of different
+kinds, stayed independent. The decoder was not told: it regularized for
+independent Poisson noise, as now.
+
+| Correlation of adjacent cells' normals | Measured correlation of their counts | Real PSNR | Real SSIM | Per sample |
+|---|---|---|---|---|
+| 0 (independent, through the copula) | -0.002 | 36.14 dB | 0.969 | 34.79 / 37.49 / 36.14 |
+| 0.1 | 0.104 | 36.11 dB | 0.971 | 34.71 / 37.49 / 36.13 |
+| 0.2 | 0.204 | 35.98 dB | 0.971 | 34.62 / 37.31 / 36.03 |
+| 0.4 | 0.401 | 35.76 dB | 0.972 | 34.46 / 36.96 / 35.85 |
+
+The count correlation was measured in the last block of cells (the finest
+scale). The first row differs from the built eye's 36.26 dB only in which
+random numbers were drawn: 0.12 dB, which is the size of the seed's spread
+and nearly the size of the effect at 0.2.
+
+**What the mismatch costs.** The decoder assumes independent noise. Noise
+shared by neighbours is noise at low spatial frequencies within one kind of
+cell, which the smoothness prior does not remove, and the regularization,
+set from each cell's own variance, does not know about it. That costs 0.03 dB
+at a correlation of 0.1, 0.16 at 0.2 and 0.38 at 0.4. SSIM does not fall. The
+roadmap guessed about -1 dB.
+
+**Why it was not built.**
+
+- *The effect is under 0.2 dB at the correlations a source would support.*
+  From memory, neighbouring ganglion cells of one type and nearby cortical
+  cells with similar tuning have count correlations of roughly 0.1 to 0.3;
+  no figure was checked for this work, so none could be cited as a parameter.
+- *It is not simple.* The spike stage would need to know where every output
+  cell is and which cells are of one kind. The cortex stage does not report
+  its cells' positions today (`gabor_bank` returns the stage alone), a retinal
+  output (the fly) lies on a hexagonal mosaic and would need a sparse
+  neighbour matrix in place of a filter on a grid, and with several looks the
+  noise shared across looks would have to be decided as well.
+- *Changing the decoder to know the correlation* (whitening the residual)
+  was not tried: it changes the linear system for an effect this small.
+
+**Not verified.** A shared field wider than one cell, or noise shared across
+scales, orientations or between ON and OFF cells (real ON and OFF neighbours
+are, from memory, negatively correlated): any of these may cost more. Other
+sizes, the mouse and the fly. Correlation together with a Fano factor below 1.
+One seed.
+
+Sources (from memory, not re-read): Mastronarde DN (1983). Correlated firing
+of cat retinal ganglion cells. I. J Neurophysiol 49:303-324. Pillow JW,
+Shlens J, Paninski L, et al. (2008). Spatio-temporal correlations and visual
+signalling in a complete neuronal population. Nature 454:995-999.
