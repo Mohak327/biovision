@@ -136,3 +136,31 @@ def opponent_retina(mosaic: Mosaic, classes, sigma_center_px: float, sigma_surro
             matrix = matrix + mixing @ pooling
         return SparseStage(name, matrix.tocsr(), *shapes), cells
     return FactoredStage(name, terms, *shapes), cells
+
+
+def rod_pathway(mosaic: Mosaic, rod_type: int, share: float, sigma_px: float,
+                name: str = "rods") -> SparseStage:
+    """Rod signals join the pathways of the other receptors (the cones).
+
+    Rods have no output cells of their own: their signals reach the retina's
+    output through the cones' pathways. Each receptor that is not a rod passes
+    on (1 - share) of its own signal plus `share` times the Gaussian mean
+    (`sigma_px`) of the rods round it. The output has one value for each such
+    receptor, in the mosaic's order, so the stages after it are the ones built
+    for the eye without rods. A uniform field comes out as it went in.
+
+    `share` is how much of the shared pathway the rods have: 0 when they are
+    saturated, 1 when only they are working. A receptor with no rod in reach
+    keeps its own signal whole.
+    """
+    if not 0.0 <= share <= 1.0:
+        raise ValueError(f"share must be between 0 and 1, got {share}")
+    kept = np.flatnonzero(mosaic.types != rod_type)
+    own = csr_matrix((np.ones(len(kept)), (np.arange(len(kept)), kept)),
+                     shape=(len(kept), len(mosaic)))
+    rods = normalize_rows(pool(mosaic.positions[kept], np.full(len(kept), rod_type),
+                               mosaic.positions, mosaic.types, 3.0 * sigma_px,
+                               lambda dy, dx: gaussian(dy, dx, sigma_px)))
+    reached = np.asarray(rods.sum(axis=1)).ravel() > 0
+    matrix = diags(1.0 - share * reached) @ own + share * rods
+    return SparseStage(name, matrix.tocsr(), (len(mosaic),), (len(kept),))
