@@ -58,22 +58,27 @@ class RetinaClass:
     `weights` has one entry per receptor type. A class whose weights sum to
     zero ignores uniform grey and carries a colour difference. `gain` scales
     the response so the class fills its firing range. `surround_weight` is the
-    strength of the spatial surround.
+    strength of the spatial surround. `center_scale` is the size of the class's
+    centre as a multiple of the eye's (a parasol cell's is larger than a
+    midget cell's).
     """
 
     name: str
     weights: tuple[float, ...]
     gain: float
     surround_weight: float
+    center_scale: float = 1.0
 
 
 def opponent_retina(mosaic: Mosaic, classes, sigma_center_px: float, sigma_surround_px: float,
+                    min_center_px: float = 0.0,
                     name: str = "center_surround") -> tuple[LinearStage, Mosaic]:
     """Retinal cells that combine receptor types, one of each class at each position.
 
     For each receptor type, a normalized Gaussian pools that type's receptors
     around every position; a class adds those pools with its weights. The
-    response is gain * (centre - surround_weight * surround).
+    response is gain * (centre - surround_weight * surround). A class's centre
+    is `center_scale` times `sigma_center_px` wide, and at least `min_center_px`.
 
     A cell whose centre reaches no receptor of a type its class weights is
     silent: with one of its inputs missing it has nothing to compare (a
@@ -91,11 +96,12 @@ def opponent_retina(mosaic: Mosaic, classes, sigma_center_px: float, sigma_surro
                              f"({mosaic.n_types}), got {len(item.weights)}")
         if not any(item.weights):
             raise ValueError(f"class '{item.name}' has no non-zero weight")
+        if item.center_scale <= 0:
+            raise ValueError(f"class '{item.name}' needs a positive center_scale")
     # Receptors of several types can share a position; cells sit once at each.
     _, first = np.unique(mosaic.positions, axis=0, return_index=True)
     positions = mosaic.positions[np.sort(first)]
     pools = all_types_at(positions, mosaic.n_types)  # one pool per receptor type per position
-    centre = smooth(pools, mosaic, sigma_center_px)
     surround = smooth(pools, mosaic, sigma_surround_px)
 
     def mix(scale):
@@ -103,20 +109,30 @@ def opponent_retina(mosaic: Mosaic, classes, sigma_center_px: float, sigma_surro
         weights = np.array([[scale(item) * w for w in item.weights] for item in classes])
         return kron(csr_matrix(weights), identity(len(positions)), format="csr")
 
-    mix_centre = mix(lambda item: item.gain)
-    mix_surround = mix(lambda item: -item.gain * item.surround_weight)
-    reached = np.ones(len(mosaic))
-    for matrix in centre:
-        reached = matrix @ reached  # 1 for a pool that found receptors, 0 for an empty one
-    reached = reached.reshape(mosaic.n_types, len(positions)) > 0
-    if not reached.all():
-        complete = diags(np.concatenate([reached[np.flatnonzero(item.weights)].all(axis=0)
-                                         for item in classes]).astype(float))
-        mix_centre, mix_surround = complete @ mix_centre, complete @ mix_surround
+    # One term for each size of centre, mixed into the classes that have it, then the surround.
+    terms = []
+    complete = np.ones((len(classes), len(positions)), dtype=bool)
+    sigmas = [max(item.center_scale * sigma_center_px, min_center_px) for item in classes]
+    for sigma in sorted(set(sigmas)):
+        centre = smooth(pools, mosaic, sigma)
+        terms.append(centre + [mix(lambda item: item.gain * (sigmas[classes.index(item)] == sigma))])
+        reached = np.ones(len(mosaic))
+        for matrix in centre:
+            reached = matrix @ reached  # 1 for a pool that found receptors, 0 for an empty one
+        reached = reached.reshape(mosaic.n_types, len(positions)) > 0
+        for index, item in enumerate(classes):
+            if sigmas[index] == sigma:
+                complete[index] = reached[np.flatnonzero(item.weights)].all(axis=0)
+    terms.append(surround + [mix(lambda item: -item.gain * item.surround_weight)])
+    if not complete.all():
+        silence = diags(complete.ravel().astype(float))
+        terms = [term[:-1] + [silence @ term[-1]] for term in terms]
     cells = Mosaic(np.tile(positions, (len(classes), 1)),
                    np.repeat(np.arange(len(classes)), len(positions)), len(classes))
     shapes = (len(mosaic),), (len(cells),)
-    if len(centre) == 1 and len(surround) == 1:
-        matrix = mix_centre @ centre[0] + mix_surround @ surround[0]
+    if all(len(term) == 2 for term in terms):
+        matrix = terms[0][1] @ terms[0][0]
+        for pooling, mixing in terms[1:]:
+            matrix = matrix + mixing @ pooling
         return SparseStage(name, matrix.tocsr(), *shapes), cells
-    return FactoredStage(name, [centre + [mix_centre], surround + [mix_surround]], *shapes), cells
+    return FactoredStage(name, terms, *shapes), cells

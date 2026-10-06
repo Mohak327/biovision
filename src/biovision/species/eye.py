@@ -222,16 +222,17 @@ def assemble(name: str, field: VisualField, params: EyeParams,
     if params.transmission and len(params.transmission) != n_types:
         raise ValueError("transmission needs one value per receptor type")
     mosaic, cells_per_position = build_mosaic(params, field, density)
-    sigma_center = max(field.to_px(params.center_sigma_deg), MIN_SIGMA_PX)
+    sigma_center = field.to_px(params.center_sigma_deg)
     sigma_surround = max(field.to_px(params.surround_sigma_deg), 2 * MIN_SIGMA_PX)
     if params.retina_classes:
         # Cells that mix receptor types must reach receptors of each type, so
-        # their centre is at least half the spacing between positions.
+        # no centre is narrower than half the spacing between positions.
         spacing = size / np.sqrt(len(np.unique(mosaic.positions, axis=0)))
-        retina, cells = opponent_retina(mosaic, params.retina_classes,
-                                        max(sigma_center, 0.5 * spacing), sigma_surround)
+        retina, cells = opponent_retina(mosaic, params.retina_classes, sigma_center,
+                                        sigma_surround, max(MIN_SIGMA_PX, 0.5 * spacing))
     else:
-        retina = center_surround(mosaic, sigma_center, sigma_surround, params.surround_weight)
+        retina = center_surround(mosaic, max(sigma_center, MIN_SIGMA_PX), sigma_surround,
+                                 params.surround_weight)
         cells = mosaic
     stages = [
         ColorProjection(params.color_matrix, size),

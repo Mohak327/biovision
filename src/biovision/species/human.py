@@ -38,6 +38,10 @@ CITATIONS = (
     "model of ocular chromatic aberration in humans. Appl Opt 31:3594-3600.",
     "Wandell BA. Useful numbers in vision science (a table published with "
     "Foundations of Vision, Sinauer 1995).",
+    "Kaplan E, Shapley RM (1986). The primate retina contains two types of ganglion "
+    "cells, with high and low contrast sensitivity. PNAS 83:2755-2757.",
+    "Dacey DM, Petersen MR (1992). Dendritic field size and morphology of midget and "
+    "parasol ganglion cells of the human retina. PNAS 89:9666-9670.",
     "Movshon JA, Thompson ID, Tolhurst DJ (1978). Spatial summation in the receptive "
     "fields of simple cells in the cat's striate cortex. J Physiol 283:53-77.",
     "Schiller PH (1992). The ON and OFF channels of the visual system. Trends "
@@ -148,6 +152,28 @@ PARAMS = EyeParams(
     # macular density of 0.35 at 460 nm and a lens density of a few tenths, so
     # roughly 0.3 to 0.5 for S). Measured at 0.3: -0.2 dB in a lit room.
 )
+
+# Parasol cells: the retina's other main class of ganglion cell, about 10% of
+# them against the midget cells' 80% (Dacey 2000). They carry luminance only,
+# through a larger centre and with a higher contrast gain. The three classes
+# above are all midget-like. Both ratios are quoted from memory and were not
+# checked against the papers for this work:
+# - centre radius about 3 times a midget cell's at the same eccentricity
+#   (Croner & Kaplan 1995, their tables of centre radii; Dacey & Petersen 1992
+#   for the dendritic fields), no unit;
+# - contrast gain about 8 times (Kaplan & Shapley 1986), no unit.
+# The class is not in PARAMS. Across 60 degrees its centre is under half a
+# pixel, like the midget centre, so it is a second luminance class with more
+# gain, and at 8 times it fails both guards the gains were chosen under.
+# Measured at 128 px: 36.9 dB real and 35.3 ideal against 36.3 and 42.1
+# without it, with 1.4% of signals past the firing range. At a gain of 2
+# (1.3 times) it gives 37.2 and 42.5 dB and passes them at 128 px, but clips
+# 0.115% at 96 px, and that is not the published cell. To add it: replace(PARAMS, retina_classes=PARAMS.retina_classes + (PARASOL,)).
+PARASOL_CENTER_RATIO = 3.0
+PARASOL_GAIN_RATIO = 8.0
+PARASOL = RetinaClass("parasol", (0.5, 0.5, 0.0),
+                      gain=PARASOL_GAIN_RATIO * PARAMS.retina_classes[0].gain,
+                      surround_weight=0.7, center_scale=PARASOL_CENTER_RATIO)
 
 
 @species.register("human")

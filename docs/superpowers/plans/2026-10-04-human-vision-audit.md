@@ -1474,3 +1474,106 @@ in Drosophila motion vision. Nature 468:300-304. Chichilnisky EJ, Kalmar RS
 J Neurosci 22:2737-2747. Dacey DM, Petersen MR (1992). Dendritic field size
 and morphology of midget and parasol ganglion cells of the human retina. PNAS
 89:9666-9670. All cited from memory; none was re-read for this work.
+
+
+### Phase 6b: midget and parasol classes (2026-10-05)
+
+**Outcome: the means to make a parasol class is built and tested; the class
+itself is defined with its published ratios and left out of the default eye.**
+
+**What was built.**
+
+- **`RetinaClass.center_scale`** (`stages/receptive.py`): the size of a
+  class's centre as a multiple of the eye's (`center_sigma_deg`), default 1.
+  `RetinaClass` could not express a parasol cell before: every class shared
+  one centre. The surround is still the eye's one surround for every class.
+- **`opponent_retina(..., min_center_px)`**: no centre is narrower than this
+  floor (half a pixel, or half the spacing of the positions). `assemble` used
+  to apply the floor before calling; it now passes the true centre size and
+  the floor, so a class's scale is applied to the real size and then floored.
+  The stage builds one centre pool for each distinct size and mixes each into
+  the classes that have it. With one size it is the stage as it was, bit for
+  bit.
+- **`human.PARASOL`**, with `PARASOL_CENTER_RATIO = 3` and
+  `PARASOL_GAIN_RATIO = 8`: a luminance class (L + M, the midget luminance
+  class's weights and surround) with a centre three times as wide and eight
+  times the gain (gain 12 against 1.5). It is not in `human.PARAMS`. To use
+  it: `replace(human.PARAMS, retina_classes=human.PARAMS.retina_classes +
+  (human.PARASOL,))`. The cortex then has a fourth type of cell at every scale
+  that carries all classes.
+
+**Why it is off.** Two reasons, both measured.
+
+1. *Across 60 degrees the larger centre does not exist.* A midget centre is
+   0.05 degrees and a parasol centre 0.15; a pixel is 0.47 degrees at 128 px.
+   Both are under the half-pixel floor, so the parasol class has exactly the
+   midget luminance class's field (a test holds this at 60 degrees, and that
+   the fields differ across 2 degrees). What is left of the class is its gain.
+2. *At the published gain it fails both guards.* See the table: 1.4% of
+   signals are past the firing range (the guard is 0.1%) and the ideal-neuron
+   result falls by 6.9 dB at 128 px and 8.9 at 96 (the guard is 1 dB).
+
+**Measurements.** Human eye with ON and OFF cells (phase 6a), 60 degrees,
+mean of the three samples, real neurons 100 ms seed 0. "Clipped" is the
+largest share of signals past the point where one cell would stop firing.
+
+| Size | Parasol class | Real PSNR | Real SSIM | Ideal PSNR | Clipped | Neurons | Spikes a cell | Steps, real / ideal |
+|---|---|---|---|---|---|---|---|---|
+| 128 px | **none (default)** | **36.26 dB** | 0.971 | **42.14 dB** | 0.029% | 739,800 | 20.7 | 502 / 560 |
+| | gain 2 (1.3 times midget) | 37.15 dB | 0.976 | 42.45 dB | 0.060% | 986,400 | 24.9 | 520 / 566 |
+| | gain 4.5 (3 times) | 37.21 dB | 0.977 | 41.82 dB | 0.246% | 986,400 | 35.4 | 551 / 629 |
+| | gain 12 (8 times: `PARASOL`) | 36.87 dB | 0.976 | 35.29 dB | 1.396% | 986,400 | 66.9 | 643 / 740 |
+| 96 px | none (default) | 37.36 dB | 0.985 | 41.44 dB | 0.055% | 490,968 | | 465 / 520 |
+| | gain 2 | 38.29 dB | 0.987 | 41.49 dB | 0.115% | 654,624 | 27.3 | 485 / 572 |
+| | gain 12 (`PARASOL`) | 37.44 dB | 0.988 | 32.51 dB | 1.465% | 654,624 | 74.1 | 562 / 328 |
+
+With one cell around a resting rate in place of the pair (128 px): gain 2
+gives 30.79 dB real and 37.88 ideal (29.97 and 40.76 without the class), and
+gain 12 gives 23.16 and 21.13, with the ideal solve not converging.
+
+**What the numbers say.**
+
+- With real neurons the class helps a little at any gain (+0.6 to +0.9 dB).
+  That is not a parasol effect. It is a second luminance channel on a third
+  more cortex cells, each with its own spike budget: 60% more spikes in all at
+  gain 2. The model gives every class the same number of cortex cells, where
+  the real parasol pathway starts from a tenth of the ganglion cells.
+- With ideal neurons the published gain costs 7 to 9 dB although the pair
+  clips nothing. The likely cause is the solve: rows twelve times as strong as
+  the others make the system harder, and the solver stops at its tolerance
+  further from the exact answer. That cause was not isolated.
+- No gain passes both guards at both sizes among those measured: gain 2
+  passes at 128 px and clips 0.115% of signals at 96.
+
+**The roadmap's rule and this decision.** By the letter of the rule a class
+that raises the real-neuron PSNR is on. It is off because the class the rule
+would switch on is not the published cell: its centre is the midget centre and
+its gain would have to be near the midget gain to pass the guards. A second
+copy of the luminance class under the name of a parasol cell would be a larger
+spike budget, not a cell type. This is a deviation, stated as one. Where the
+class would mean something is a narrow field, where its centre is wider than
+the floor; the narrow-field eye is not calibrated (phases 9 and 13), so
+nothing was measured there.
+
+**Guards.** With the default eye every species is bit-identical (the same 36
+arrays as phase 6a, compared after this change); the fly's pinned values and
+the mouse's new ones hold. A retina with two sizes of centre keeps an exact
+adjoint (relative 1e-10), and so does the composed operator of a human eye
+with the parasol class (1e-9). 363 tests pass with phase 8a's in the tree (341
+after phase 6a; 6 new for this phase).
+
+**Deviations from the brief.** The class is off by default (above). The
+surround is shared; a parasol cell's is larger too, and that was not built.
+
+**Not verified.** Both ratios are quoted from memory and were not checked
+against the papers. Croner & Kaplan's centre radii differ with eccentricity,
+and one ratio for the whole retina is a simplification. A narrow field. 256 px
+and above, where the retina is a `FactoredStage`: the term order is the old
+one, but no bit-identity run was made at those sizes. The parasol class with
+several looks or photon noise.
+
+Sources: Croner LJ, Kaplan E (1995). Receptive fields of P and M ganglion
+cells across the primate retina. Vision Res 35:7-24. Kaplan E, Shapley RM
+(1986). The primate retina contains two types of ganglion cells, with high and
+low contrast sensitivity. PNAS 83:2755-2757. Dacey DM, Petersen MR (1992), as
+above. Dacey DM (2000), as above.
