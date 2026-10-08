@@ -7,7 +7,7 @@ import { Eyepiece } from "./components/Eyepiece";
 import { Measurements } from "./components/Measurements";
 import { Pathway } from "./components/Pathway";
 import { Retina } from "./components/Retina";
-import { SignalPath, runStatus } from "./components/SignalPath";
+import { SignalPath, runEstimate, runStatus } from "./components/SignalPath";
 import { SpeciesPicker } from "./components/SpeciesPicker";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { TitleEye } from "./components/TitleEye";
@@ -134,6 +134,7 @@ export function App() {
             busy={run.status === "running"}
           />
           <p className="status" role="status" data-state={run.status}>{runStatus(run, settings.species)}</p>
+          <p className="status-estimate">{runEstimate(run, settings)}</p>
           {result && !result.converged && (
             <p className="measure-note">The solver stopped before fully settling; this is its best estimate.</p>
           )}

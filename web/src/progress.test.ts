@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { runProgress } from "./progress";
+import { estimatedSeconds, roundDuration, runProgress } from "./progress";
 
 const STAGES = ["color", "optics", "mosaic", "decoding"];
 const running = (current: number, fraction = 0) =>
@@ -32,5 +32,31 @@ describe("runProgress", () => {
 
   it("is empty after an error", () => {
     expect(runProgress({ status: "error", stages: STAGES, current: 2, fraction: 0 })).toBe(0);
+  });
+});
+
+describe("estimatedSeconds", () => {
+  const human = { species: "human", size_px: 96, neuron_density: 1 };
+
+  it("is the measured time at the reference size", () => {
+    expect(estimatedSeconds(human)).toBe(40);
+  });
+
+  it("grows with the number of pixels and of neurons", () => {
+    expect(estimatedSeconds({ ...human, size_px: 192 })).toBe(160);
+    expect(estimatedSeconds({ ...human, neuron_density: 0.5 })).toBe(20);
+  });
+
+  it("is much shorter for the smaller eyes", () => {
+    expect(estimatedSeconds({ ...human, species: "fly" })).toBeLessThan(5);
+  });
+});
+
+describe("roundDuration", () => {
+  it("rounds to words a person would use", () => {
+    expect(roundDuration(2)).toBe("about 5 seconds");
+    expect(roundDuration(23)).toBe("about 25 seconds");
+    expect(roundDuration(70)).toBe("about a minute");
+    expect(roundDuration(290)).toBe("about 5 minutes");
   });
 });

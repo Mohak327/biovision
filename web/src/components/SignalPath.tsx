@@ -1,7 +1,7 @@
 // The path a picture takes through the eye: one bar for the whole run, and
 // one station per stage showing that stage's picture as soon as it is reached.
 import { capitalised, stageLabel, stageText } from "../presets";
-import { runProgress } from "../progress";
+import { type RunSize, estimatedSeconds, roundDuration, runProgress } from "../progress";
 import type { RunState } from "../useRun";
 import { StageGraph } from "./StageGraph";
 
@@ -76,4 +76,10 @@ export function runStatus(run: RunState, speciesName: string): string {
     return `Rebuilt in ${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)} s over ${run.result.iterations} steps`;
   }
   return "Pick a picture to begin";
+}
+
+/** How long the run in progress is expected to take; empty when no run is in progress. */
+export function runEstimate(run: RunState, size: RunSize): string {
+  if (run.status !== "running") return "";
+  return `Estimated run time: ${roundDuration(estimatedSeconds(size))}`;
 }

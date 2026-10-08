@@ -19,3 +19,28 @@ export function runProgress({ status, stages, current, fraction }: RunProgress):
   const steps = current >= last ? last + Math.min(Math.max(fraction, 0), 1) : current + 1;
   return Math.min(steps / stages.length, 1);
 }
+
+export type RunSize = { species: string; size_px: number; neuron_density: number };
+
+// Seconds a run took on the live site at REFERENCE_PX with the real number of
+// neurons, measured once for each species. The human eye has far more cells.
+const REFERENCE_SECONDS: Record<string, number> = { human: 40, mouse: 2, fly: 2 };
+const REFERENCE_PX = 96;
+const UNKNOWN_SPECIES_SECONDS = 10;
+
+/**
+ * Roughly how long a run will take, in seconds, worked out from its settings
+ * before it starts. The work grows with the number of pixels and of neurons.
+ * It is a guide to what to expect, not a measurement.
+ */
+export function estimatedSeconds({ species, size_px, neuron_density }: RunSize): number {
+  const reference = REFERENCE_SECONDS[species] ?? UNKNOWN_SPECIES_SECONDS;
+  return reference * (size_px / REFERENCE_PX) ** 2 * neuron_density;
+}
+
+/** A run time in round words: nobody needs an estimate to the second. */
+export function roundDuration(seconds: number): string {
+  if (seconds < 45) return `about ${Math.max(5, Math.round(seconds / 5) * 5)} seconds`;
+  if (seconds < 90) return "about a minute";
+  return `about ${Math.round(seconds / 60)} minutes`;
+}

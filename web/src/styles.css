@@ -165,6 +165,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 .status { text-align: center; max-width: none; font-weight: 700; min-height: 1.5em; }
 .status[data-state="running"] { color: var(--accent); }
+/* Empty once a run is done, but it keeps its line so nothing below moves. */
+.status-estimate {
+  text-align: center; max-width: none; margin: 0; min-height: 1.5em;
+  font-size: var(--step--1); color: var(--ink-soft);
+}
 .status[data-state="error"] { color: var(--rebuilt); }
 
 .readout { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem 1.5rem; margin: 1rem 0 0; }
