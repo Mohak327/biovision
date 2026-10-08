@@ -45,25 +45,31 @@ export function Pathway({ species }: { species: string }) {
         </div>
         <div className="pathway-side">
           <ol className="pathway-stops">
-            {route.stops.map((one) => (
-              <li key={one.id}>
-                <button
-                  type="button"
-                  className="stop"
-                  aria-pressed={one.id === stop.id}
-                  onClick={() => setSelected(one.id)}
-                >
-                  <span>{one.name}</span>
-                  {one.stages.length > 0 && <span className="stop-mark">in the model</span>}
-                </button>
-              </li>
-            ))}
+            {route.stops.map((one) => {
+              const open = one.id === stop.id;
+              return (
+                <li key={one.id}>
+                  <button
+                    type="button"
+                    className="stop"
+                    aria-expanded={open}
+                    aria-controls={open ? "pathway-detail" : undefined}
+                    onClick={() => setSelected(one.id)}
+                  >
+                    <span>{one.name}</span>
+                    {one.stages.length > 0 && <span className="stop-mark">in the model</span>}
+                  </button>
+                  {/* The description opens under its own stop. */}
+                  {open && (
+                    <div className="stop-detail" id="pathway-detail" aria-live="polite">
+                      <p>{one.what}</p>
+                      <p className="pathway-status">{stopStatus(one)}</p>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ol>
-          <div className="pathway-detail" aria-live="polite">
-            <h3>{stop.name}</h3>
-            <p>{stop.what}</p>
-            <p className="pathway-status">{stopStatus(stop)}</p>
-          </div>
         </div>
       </div>
       <p className="pathway-credit">{route.credit}</p>
