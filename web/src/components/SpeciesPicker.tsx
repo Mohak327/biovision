@@ -4,6 +4,7 @@ import type { SpeciesInfo } from "../api";
 import { RECEPTOR_COLORS, capitalised } from "../presets";
 
 const SIZE = 72;
+const WAITING = [0, 1, 2]; // placeholders shown until the server lists its species
 
 /** Dots laid out the way each eye's receptors are: rings, a grid, or hexagons. */
 function patternDots(name: string): [number, number][] {
@@ -42,11 +43,26 @@ const FACTS: Record<string, string> = {
   fly: "About 500 facets, no red",
 };
 
-type Props = { species: SpeciesInfo[]; selected: string; onSelect: (name: string) => void };
+type Props = {
+  species: SpeciesInfo[];
+  /** Whether the list is still expected, so placeholders stand in for it. */
+  waiting: boolean;
+  selected: string;
+  onSelect: (name: string) => void;
+};
 
-export function SpeciesPicker({ species, selected, onSelect }: Props) {
+export function SpeciesPicker({ species, waiting, selected, onSelect }: Props) {
   return (
     <div className="species" role="radiogroup" aria-label="Whose eye">
+      {species.length === 0 && waiting && WAITING.map((place) => (
+        <div key={place} className="species-card" aria-hidden="true">
+          <span className="ghost species-ghost" style={{ width: SIZE, height: SIZE }} />
+          <span className="species-text species-text-ghost">
+            <span className="ghost" />
+            <span className="ghost" />
+          </span>
+        </div>
+      ))}
       {species.map((item) => {
         const dots = patternDots(item.name);
         const active = item.name === selected;

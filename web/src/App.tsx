@@ -15,6 +15,7 @@ import { DEFAULT_SETTINGS, capitalised } from "./presets";
 import { useTheme } from "./theme";
 import { useRun } from "./useRun";
 
+const WAITING = [0, 1, 2]; // placeholders shown until the server lists its pictures
 const SERVER_HELP = "The Python server is not answering. Start it with: biovision serve";
 
 /** One measurement, or a ghost bar while the run has not produced it yet. */
@@ -73,6 +74,12 @@ export function App() {
         <div className="pictures">
           <span className="chooser-label" id="picture-label">Picture</span>
           <div className="picture-list" role="radiogroup" aria-labelledby="picture-label">
+            {samples.length === 0 && !loadProblem && WAITING.map((place) => (
+              <div key={place} className="picture" aria-hidden="true">
+                <span className="ghost picture-ghost" />
+                <span className="ghost" />
+              </div>
+            ))}
             {samples.map((name) => {
               const active = source?.kind === "sample" && source.name === name;
               return (
@@ -114,7 +121,7 @@ export function App() {
         </div>
         <div>
           <span className="chooser-label">Eye</span>
-          <SpeciesPicker species={species} selected={settings.species} onSelect={(name) => change({ species: name })} />
+          <SpeciesPicker species={species} waiting={!loadProblem} selected={settings.species} onSelect={(name) => change({ species: name })} />
         </div>
       </section>
 

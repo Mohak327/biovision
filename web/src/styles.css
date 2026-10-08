@@ -178,6 +178,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background-size: 200% 100%; animation: ghost 1.5s linear infinite;
 }
 @keyframes ghost { to { background-position: -200% 0; } }
+/* Placeholders in the picture and eye choosers, the size of what replaces them. */
+.picture .picture-ghost { width: 4.4rem; height: 4.4rem; border-radius: 7px; }
+.picture .ghost:last-child { width: 3.2rem; height: 0.8rem; margin: 0.35rem 0; }
+.species-ghost { flex: none; border-radius: 50%; }
+.species-text-ghost { gap: 0.7rem; flex: 1; min-width: 0; }
+.species-text-ghost .ghost:first-child { width: 5rem; height: 1.1rem; }
+.species-text-ghost .ghost:last-child { width: 80%; height: 0.8rem; }
 .readout dd { margin: 0; font-family: var(--display); font-size: var(--step-2); font-weight: 680; font-variant-numeric: tabular-nums; }
 
 .controls { background: var(--slide-raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; }
