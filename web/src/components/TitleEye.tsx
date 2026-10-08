@@ -85,7 +85,9 @@ function FlyEye() {
 const EYES = [HumanEye, MouseEye, FlyEye];
 
 function Reel({ index, still }: { index: number; still: boolean }) {
-  const gaze = useRef<THREE.Group>(null);
+  // Each eye turns about its own centre. Turning the reel instead would swing the others into view.
+  const eyes = useRef<(THREE.Group | null)[]>([]);
+  const gaze = useRef({ x: 0, y: 0 });
   const reel = useRef<THREE.Group>(null);
   const shown = useRef(index);
   const goal = useRef(index * STEP); // the reel only ever rolls forward
@@ -118,26 +120,23 @@ function Reel({ index, still }: { index: number; still: boolean }) {
     }
     angle.current = still ? goal.current : THREE.MathUtils.damp(angle.current, goal.current, ROLL, delta);
     if (reel.current) reel.current.rotation.x = -angle.current;
-    if (gaze.current) {
-      gaze.current.rotation.y = THREE.MathUtils.damp(gaze.current.rotation.y, pointer.current.x * 0.6, LOOK, delta);
-      gaze.current.rotation.x = THREE.MathUtils.damp(gaze.current.rotation.x, pointer.current.y * 0.45, LOOK, delta);
-    }
+    gaze.current.y = THREE.MathUtils.damp(gaze.current.y, pointer.current.x * 0.6, LOOK, delta);
+    gaze.current.x = THREE.MathUtils.damp(gaze.current.x, pointer.current.y * 0.45, LOOK, delta);
+    for (const eye of eyes.current) eye?.rotation.set(gaze.current.x, gaze.current.y, 0);
   });
 
   return (
     <>
       <ambientLight intensity={0.9} />
       <directionalLight position={[2, 3, 4]} intensity={2} />
-      <group ref={gaze}>
-        <group ref={reel} position={[0, 0, -REEL]}>
-          {EYES.map((Eye, place) => (
-            <group key={ORDER[place]} rotation={[place * STEP, 0, 0]}>
-              <group position={[0, 0, REEL]}>
-                <Eye />
-              </group>
+      <group ref={reel} position={[0, 0, -REEL]}>
+        {EYES.map((Eye, place) => (
+          <group key={ORDER[place]} rotation={[place * STEP, 0, 0]}>
+            <group position={[0, 0, REEL]} ref={(group) => { eyes.current[place] = group; }}>
+              <Eye />
             </group>
-          ))}
-        </group>
+          </group>
+        ))}
       </group>
     </>
   );
