@@ -1,11 +1,14 @@
 // The whole route of seeing in 3D for the chosen species: the model, the
 // ordered stops beside it, and what happens at the selected one. The list and
 // the descriptions carry the content; the 3D view illustrates it.
-import { useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Suspense, lazy, useState } from "react";
 import { routeFor, stopStatus } from "../pathway";
 
 const DEFAULT_STOP = "receptors"; // every species has it, and it is in the model
+const DRAWER = { duration: 0.26, ease: [0.2, 0, 0, 1] as const }; // quick out, soft landing
+const CLOSED = { height: 0, opacity: 0 };
+const OPEN = { height: "auto", opacity: 1 };
 
 /** A link can open the model on one stop: add ?stop=chiasm (or any stop's id) to the address. */
 function stopInAddress(): string | null {
@@ -53,19 +56,31 @@ export function Pathway({ species }: { species: string }) {
                     type="button"
                     className="stop"
                     aria-expanded={open}
-                    aria-controls={open ? "pathway-detail" : undefined}
+                    aria-controls={open ? `stop-detail-${one.id}` : undefined}
                     onClick={() => setSelected(one.id)}
                   >
                     <span>{one.name}</span>
                     {one.stages.length > 0 && <span className="stop-mark">in the model</span>}
                   </button>
-                  {/* The description opens under its own stop. */}
-                  {open && (
-                    <div className="stop-detail" id="pathway-detail" aria-live="polite">
-                      <p>{one.what}</p>
-                      <p className="pathway-status">{stopStatus(one)}</p>
-                    </div>
-                  )}
+                  {/* The description slides open under its own stop, and shut when another is picked. */}
+                  <AnimatePresence initial={false}>
+                    {open && (
+                      <motion.div
+                        className="stop-drawer"
+                        id={`stop-detail-${one.id}`}
+                        aria-live="polite"
+                        initial={CLOSED}
+                        animate={OPEN}
+                        exit={CLOSED}
+                        transition={still ? { duration: 0 } : DRAWER}
+                      >
+                        <div className="stop-detail">
+                          <p>{one.what}</p>
+                          <p className="pathway-status">{stopStatus(one)}</p>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </li>
               );
             })}
