@@ -139,13 +139,41 @@ def test_run_reports_each_stage_then_the_decoding_frames(sample):
     np.testing.assert_array_equal(decode[-1].image, result.reconstructed)
 
 
-def test_stage_events_carry_an_image_only_for_image_like_stages(sample):
+@pytest.mark.parametrize("name, options", [
+    ("fly", {}), ("mouse", {}), ("human", {}),
+    ("human", {"looks": 2}), ("human", {"photons_per_s": 1e4}),
+])
+def test_every_stage_reports_a_preview_picture(sample, name, options):
+    """Stages whose output is not a picture are projected back into picture space."""
     events = []
-    run(sample, "fly", on_progress=events.append, **SMALL)
-    by_stage = {event.stages[event.current]: event for event in events if event.iteration == 0}
-    assert by_stage["color"].image.shape == (32, 32, 3)
-    assert by_stage["optics"].image.shape == (32, 32, 3)
-    assert by_stage["mosaic"].image is None and by_stage["spikes"].image is None
+    run(sample, name, on_progress=events.append, **options, **SMALL)
+    stage_events = [event for event in events if event.iteration == 0]
+    assert len(stage_events) == len(events[0].stages) - 1
+    for event in stage_events:
+        assert event.image is not None, event.stages[event.current]
+        assert event.image.shape == (32, 32, 3)
+        assert np.all(np.isfinite(event.image))
+        assert event.image.min() >= 0.0 and event.image.max() <= 1.0
+        assert event.fraction == 0.0
+
+
+def test_stage_previews_differ_from_stage_to_stage(sample):
+    """The mosaic, the retina and the spikes each show something of their own."""
+    events = []
+    run(sample, "mouse", on_progress=events.append, **SMALL)
+    by_stage = {event.stages[event.current]: event.image for event in events if event.iteration == 0}
+    assert not np.allclose(by_stage["mosaic"], by_stage["center_surround"])
+    assert not np.allclose(by_stage["rate"], by_stage["spikes"])  # the spikes carry noise
+    assert by_stage["mosaic"].std() > 0.05  # a picture, not a blank
+
+
+def test_decoding_progress_only_grows_and_ends_done(sample):
+    events = []
+    result = run(sample, "mouse", noise=False, on_progress=events.append, **SMALL)
+    fractions = [event.fraction for event in events if event.iteration > 0]
+    assert fractions == sorted(fractions)
+    assert 0.0 <= fractions[0] < fractions[-1]
+    assert result.reconstruction.converged and fractions[-1] == 1.0
 
 
 def test_progress_reporting_does_not_change_the_result(sample):
@@ -161,3 +189,40 @@ def test_neuron_density_adds_neurons_and_is_recorded(sample):
     assert dense.metrics["neurons"] > 3 * base.metrics["neurons"]
     assert dense.metrics["receptors"] == base.metrics["receptors"]
     assert dense.metrics["psnr_db"] > base.metrics["psnr_db"]  # more spikes to average
+
+
+def test_the_rate_stage_reports_its_real_curve_and_where_the_responses_fall(sample):
+    events = []
+    result = run(sample, "human", on_progress=events.append, **SMALL)
+    by_stage = {event.stages[event.current]: event for event in events if event.iteration == 0}
+    assert by_stage["optics"].plot is None and by_stage["center_surround"].plot is None
+    plot = by_stage["rate"].plot
+    stage = result.pipeline.pointwise_stages[0]
+    response = np.array(plot["response"])
+    rates = stage.forward(response)  # the curve is the stage itself, not a drawing
+    np.testing.assert_allclose(plot["rates"]["ON cells"], rates[..., 0])
+    np.testing.assert_allclose(plot["rates"]["OFF cells"], rates[..., 1])
+    drive = result.code.intermediates[result.pipeline.linear_stages[-1].name]
+    assert response[0] < 0 < response[-1]
+    assert response[0] <= np.percentile(drive, 1) and response[-1] >= np.percentile(drive, 99)
+    assert len(plot["cells"]) == len(response) - 1
+    assert 0.95 * drive.size < sum(plot["cells"]) <= drive.size  # nearly every response is in range
+
+
+def test_the_spike_stage_reports_the_counts_its_cells_fired(sample):
+    events = []
+    result = run(sample, "human", on_progress=events.append, **SMALL)
+    plot = next(event.plot for event in events if event.stages[event.current] == "spikes")
+    counts = np.asarray(result.code.responses)
+    assert sum(plot["cells"]) == counts.size
+    assert len(plot["edges"]) == len(plot["cells"]) + 1
+    assert plot["edges"][0] == counts.min() and plot["edges"][-1] == counts.max()
+
+
+def test_an_eye_with_one_cell_per_signal_reports_a_single_rate_curve(sample):
+    events = []
+    result = run(sample, "fly", on_progress=events.append, **SMALL)
+    plot = next(event.plot for event in events if event.stages[event.current] == "rate")
+    assert list(plot["rates"]) == ["cells"]
+    stage = result.pipeline.pointwise_stages[0]
+    np.testing.assert_allclose(plot["rates"]["cells"], stage.forward(np.array(plot["response"])))

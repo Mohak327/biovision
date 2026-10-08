@@ -39,15 +39,19 @@ class Progress:
     """One step of a run, for a live display.
 
     `stages` names every step in order, ending with "decoding"; `current`
-    indexes the step just reached. `image` is (size, size, 3) in [0, 1]: the
-    stage's output where that is an image, the current estimate while
-    decoding, otherwise None. `iteration` is 0 until decoding starts.
+    indexes the step just reached. `image` is (size, size, 3) in [0, 1]: a
+    preview of the stage's output, or the current estimate while decoding.
+    `iteration` is 0 until decoding starts, and `fraction` is then the share
+    of the solve that is done, from 0 to 1. `plot` holds the numbers behind a
+    stage whose output is better read as a graph (see `stage_plots`).
     """
 
     stages: tuple[str, ...]
     current: int
-    image: np.ndarray | None
+    image: np.ndarray
     iteration: int
+    fraction: float = 0.0
+    plot: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -67,6 +71,34 @@ def build_pipeline(species_name: str, size_px: int, fov_deg: float,
                    density: float = 1.0, neuron_density: float = 1.0) -> Pipeline:
     """Build (and cache) a species' pipeline. Building the sparse stages is slow."""
     return species.get(species_name)(VisualField(size_px, fov_deg), density, neuron_density)
+
+
+PLOT_POINTS = 41  # points along the rate curve; one fewer bins under it
+SPIKE_BINS = 30
+
+
+def stage_plots(pipeline: Pipeline, code: NeuralCode) -> dict[str, dict]:
+    """The numbers behind the two pointwise stages of this run, for a graph of each.
+
+    The rate stage: its curve, evaluated by the stage itself over the range of
+    responses this picture produced (`response` against `rates`, one curve per
+    kind of cell), and how many cells fall in each interval of that range
+    (`cells`). The spike stage: a histogram of the counts its cells fired.
+    """
+    rate_stage, spike_stage = pipeline.pointwise_stages[0], pipeline.pointwise_stages[-1]
+    drive = np.asarray(code.intermediates[pipeline.linear_stages[-1].name], dtype=float).ravel()
+    reach = float(np.max(np.abs(np.percentile(drive, (0.5, 99.5))))) or 1.0
+    response = np.linspace(-reach, reach, PLOT_POINTS)
+    rates = np.asarray(rate_stage.forward(response), dtype=float).reshape(PLOT_POINTS, -1)
+    kinds = ("ON cells", "OFF cells") if rates.shape[1] == 2 else ("cells",)
+    in_range, _ = np.histogram(drive, bins=response)
+    fired, edges = np.histogram(np.asarray(code.responses).ravel(), bins=SPIKE_BINS)
+    return {
+        rate_stage.name: {"response": response.tolist(),
+                          "rates": {kind: rates[:, i].tolist() for i, kind in enumerate(kinds)},
+                          "cells": in_range.tolist()},
+        spike_stage.name: {"edges": edges.tolist(), "cells": fired.tolist()},
+    }
 
 
 def _first_look(intermediates: dict[str, np.ndarray], looks: int) -> dict[str, np.ndarray]:
@@ -102,12 +134,45 @@ def _photon_noise_variance(pipeline: Pipeline, code: NeuralCode,
     return float(np.mean(noise**2))
 
 
-def _stage_image(output: np.ndarray) -> np.ndarray | None:
-    """A stage output as a (size, size, 3) image, or None if it is not image-like."""
-    if output.ndim != 3:
-        return None
-    gray = np.clip(output.mean(axis=0), 0.0, 1.0)
-    return np.repeat(gray[:, :, None], 3, axis=2)
+def _stretched(picture: np.ndarray) -> np.ndarray:
+    """A (height, width, channels) picture with each channel's 1st to 99th
+    percentiles stretched to [0, 1], which also removes a colour cast."""
+    low, high = np.percentile(picture, (1.0, 99.0), axis=(0, 1))
+    span = np.where(high > low, high - low, 1.0)
+    return np.clip((picture - low) / span, 0.0, 1.0)
+
+
+def stage_previews(pipeline: Pipeline, code: NeuralCode, looks: int = 1) -> dict[str, np.ndarray]:
+    """A (size, size, 3) picture in [0, 1] for every stage's output, for display.
+
+    A stage whose output is already a picture per receptor type is shown as
+    its mean over types. Any other output (receptor samples, retinal and
+    cortical cells, rates, spikes) is carried back into picture space: the
+    pointwise stages up to it are undone, then the transposes of the linear
+    stages before it are applied, and the result is stretched for contrast.
+    It shows where in the picture that stage's signal sits, not a reconstruction.
+    """
+    size = pipeline.field.size_px
+    pictures = {}
+    first_look = _first_look(code.intermediates, looks)
+    for index, stage in enumerate(pipeline.stages):
+        output = first_look[stage.name]
+        if output.ndim == 3 and output.shape[1:] == (size, size):
+            gray = np.clip(output.mean(axis=0), 0.0, 1.0)
+            pictures[stage.name] = np.repeat(gray[:, :, None], 3, axis=2)
+            continue
+        back = np.asarray(code.intermediates[stage.name], dtype=float)
+        linear = pipeline.linear_stages
+        if stage in pipeline.pointwise_stages:
+            reached = pipeline.pointwise_stages.index(stage) + 1
+            for undone in reversed(pipeline.pointwise_stages[:reached]):
+                back = undone.inverse(back)
+        else:
+            linear = linear[:linear.index(stage) + 1]
+        for before in reversed(linear):
+            back = before.adjoint(back)
+        pictures[stage.name] = _stretched(back.transpose(1, 2, 0))
+    return pictures
 
 
 def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
@@ -165,11 +230,15 @@ def run(image, species_name: str, *, fov_deg: float = 60.0, size_px: int = 128,
     on_iteration = None
     if on_progress is not None:
         stages = tuple(code.intermediates) + ("decoding",)
-        for index, output in enumerate(_first_look(code.intermediates, looks).values()):
-            on_progress(Progress(stages, index, _stage_image(output), 0))
+        plots = stage_plots(pipeline, code)
+        for index, (name, picture) in enumerate(stage_previews(pipeline, code, looks).items()):
+            on_progress(Progress(stages, index, picture, 0, plot=plots.get(name)))
+        furthest = [0.0]  # the residual can rise for a step; the reported share never does
 
-        def on_iteration(k, estimate):
-            on_progress(Progress(stages, len(stages) - 1, estimate.transpose(1, 2, 0), k))
+        def on_iteration(k, estimate, residual):
+            furthest[0] = max(furthest[0], decoder.progress(residual))
+            on_progress(Progress(stages, len(stages) - 1, estimate.transpose(1, 2, 0), k,
+                                 furthest[0]))
     if lam is None:
         # The data term of K looks is K times one look's, so the floor grows alike.
         lam = looks * LAM_FLOOR

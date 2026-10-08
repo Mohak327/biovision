@@ -35,6 +35,9 @@ def test_species_lists_every_registered_species():
     assert fly["receptors"] == ["UV", "blue", "green"] and fly["has_cortex"] is False
     assert human["receptors"] == ["L", "M", "S"] and human["has_cortex"] is True
     assert len(fly["description"]) > 40 and len(fly["citations"]) >= 3
+    assert fly["stages"] == ["color", "optics", "mosaic", "center_surround", "rate", "spikes",
+                             "decoding"]
+    assert "gabor" in human["stages"] and human["stages"][-1] == "decoding"
 
 
 def test_samples_are_listed_and_served_as_png():
@@ -59,9 +62,15 @@ def test_run_streams_mosaic_stages_frames_then_result():
                                          "rate", "spikes", "decoding"]
     assert [event["current"] for event in stage_events] == list(range(6))
     assert decode_png(stage_events[0]["image"]).shape == (32, 32, 3)
-    assert stage_events[2]["image"] is None
+    assert all(decode_png(event["image"]).shape == (32, 32, 3) for event in stage_events)
+    plots = {event["stages"][event["current"]]: event["plot"] for event in stage_events}
+    assert plots["optics"] is None and plots["mosaic"] is None
+    assert set(plots["rate"]) == {"response", "rates", "cells"}
+    assert set(plots["spikes"]) == {"edges", "cells"}
     frames = [event for event in stream if event["type"] == "frame"]
     assert frames and frames == sorted(frames, key=lambda event: event["iteration"])
+    progress = [event["progress"] for event in frames]
+    assert progress == sorted(progress) and 0.0 <= progress[0] and progress[-1] == 1.0
     assert kinds.index("frame") > kinds.index("stage")
 
 

@@ -20,6 +20,7 @@ export type SpeciesInfo = {
   receptors: string[];
   has_cortex: boolean;
   citations: string[];
+  stages: string[]; // the steps of a run, ending with "decoding"
 };
 
 export type MosaicEvent = {
@@ -30,8 +31,15 @@ export type MosaicEvent = {
   receptors: string[];
 };
 export type OriginalEvent = { type: "original"; image: string };
-export type StageEvent = { type: "stage"; stages: string[]; current: number; image: string | null };
-export type FrameEvent = { type: "frame"; iteration: number; image: string };
+// The numbers behind the two stages that are better read as a graph than a picture.
+export type RatePlot = { response: number[]; rates: Record<string, number[]>; cells: number[] };
+export type SpikePlot = { edges: number[]; cells: number[] };
+export type StagePlot = RatePlot | SpikePlot;
+export type StageEvent = {
+  type: "stage"; stages: string[]; current: number; image: string; plot: StagePlot | null;
+};
+// `progress` is the share of the decoding solve that is done, 0 to 1.
+export type FrameEvent = { type: "frame"; iteration: number; image: string; progress: number };
 export type ErrorEvent = { type: "error"; message: string };
 export type RunSummary = {
   type: "result";

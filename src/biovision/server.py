@@ -163,7 +163,9 @@ def _species_info(name: str) -> dict:
     params = pipeline.metadata["params"]
     return {"name": name, "description": pipeline.description,
             "receptors": list(params.receptor_names),
-            "has_cortex": bool(params.cortex_sf_cpd), "citations": list(pipeline.citations)}
+            "has_cortex": bool(params.cortex_sf_cpd), "citations": list(pipeline.citations),
+            # The steps of a run, so the page can lay them out before one starts.
+            "stages": [stage.name for stage in pipeline.stages] + ["decoding"]}
 
 
 @app.get("/api/species")
@@ -184,6 +186,12 @@ def get_sample(name: str) -> Response:
     return Response(data, media_type="image/png")
 
 
+def frame_event(progress) -> dict:
+    """The decoder's current estimate and how far its solve has got."""
+    return {"type": "frame", "iteration": progress.iteration, "image": _png(progress.image),
+            "progress": progress.fraction}
+
+
 def _stream_run(image: np.ndarray, settings: Settings):
     """Run in a worker thread and yield its events as NDJSON lines."""
     events: queue.Queue = queue.Queue()
@@ -198,17 +206,16 @@ def _stream_run(image: np.ndarray, settings: Settings):
             if cancelled.is_set():
                 raise _Cancelled
             if progress.iteration == 0:
-                picture = None if progress.image is None else _png(progress.image)
                 events.put({"type": "stage", "stages": list(progress.stages),
-                            "current": progress.current, "image": picture})
+                            "current": progress.current, "image": _png(progress.image),
+                            "plot": progress.plot})
                 return
             pending[0] = progress
             now = time.monotonic()
             if now - last_frame[0] >= FRAME_INTERVAL_S:
                 last_frame[0] = now
                 pending[0] = None
-                events.put({"type": "frame", "iteration": progress.iteration,
-                            "image": _png(progress.image)})
+                events.put(frame_event(progress))
 
         try:
             options = settings.run_options()
@@ -221,8 +228,7 @@ def _stream_run(image: np.ndarray, settings: Settings):
                 warnings.simplefilter("ignore", RuntimeWarning)
                 result = run(image, settings.species, on_progress=on_progress, **options)
             if pending[0] is not None:
-                events.put({"type": "frame", "iteration": pending[0].iteration,
-                            "image": _png(pending[0].image)})
+                events.put(frame_event(pending[0]))
             events.put(summarize(result))
         except _Cancelled:
             pass

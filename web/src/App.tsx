@@ -9,6 +9,7 @@ import { Pathway } from "./components/Pathway";
 import { Retina } from "./components/Retina";
 import { SignalPath, runStatus } from "./components/SignalPath";
 import { SpeciesPicker } from "./components/SpeciesPicker";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { DEFAULT_SETTINGS } from "./presets";
 import { useTheme } from "./theme";
 import { useRun } from "./useRun";
@@ -56,9 +57,7 @@ export function App() {
       <header className="masthead">
         <div className="masthead-top">
           <h1>biovision</h1>
-          <button type="button" className="theme-toggle" onClick={toggleTheme}>
-            {theme === "dark" ? "Light theme" : "Dark theme"}
-          </button>
+          <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
         <p className="lede">
           A picture goes into an eye as light and leaves as spikes. This rebuilds the
@@ -141,7 +140,7 @@ export function App() {
 
       <section className="journey" aria-labelledby="journey-title">
         <h2 id="journey-title">From light to spikes and back</h2>
-        <SignalPath run={run} />
+        <SignalPath run={run} expected={current?.stages ?? []} />
         {run.mosaic && (
           <div className="journey-retina">
             <div>

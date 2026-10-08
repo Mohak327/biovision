@@ -25,7 +25,8 @@ def conjugate_gradient(apply, b: np.ndarray, tol: float, max_iter: int, on_itera
     """Solve apply(x) = b for a symmetric positive-definite operator.
 
     Returns (x, relative residual after each iteration, converged). If given,
-    `on_iteration(k, x)` is called after iteration k with the current estimate.
+    `on_iteration(k, x, residual)` is called after iteration k with the current
+    estimate and its relative residual.
 
     `precondition(r)`, if given, applies a symmetric positive-definite
     approximation of the operator's inverse. It changes how many iterations
@@ -48,7 +49,7 @@ def conjugate_gradient(apply, b: np.ndarray, tol: float, max_iter: int, on_itera
         r -= alpha * ap
         residuals.append(float(np.sqrt(r @ r)) / b_norm)
         if on_iteration is not None:
-            on_iteration(len(residuals), x)
+            on_iteration(len(residuals), x, residuals[-1])
         if residuals[-1] <= tol:
             return x, residuals, True
         z = r if precondition is None else precondition(r)
@@ -144,6 +145,14 @@ class Decoder:
             y = stage.inverse(y)
         return y
 
+    def progress(self, residual: float) -> float:
+        """How far a solve with this relative residual is from done, from 0 to 1.
+
+        The residual starts at 1 and the solve stops at `tol`; it falls roughly
+        geometrically, so the share of the way is measured on a log scale.
+        """
+        return float(np.clip(np.log(max(residual, 1e-300)) / np.log(self.tol), 0.0, 1.0))
+
     def noise_variance(self, code: NeuralCode) -> float:
         """Mean variance of the linear drive that the spike noise causes.
 
@@ -166,7 +175,7 @@ class Decoder:
                          for of_cell, slope in zip(variance, slopes)))
 
     def decode(self, code: NeuralCode, on_iteration=None) -> Reconstruction:
-        """Reconstruct the image. If given, `on_iteration(k, image)` receives the
+        """Reconstruct the image. If given, `on_iteration(k, image, residual)` receives the
         estimate after each solver iteration, as (channels, size, size) in [0, 1]."""
         pipeline = self.pipeline
         a = pipeline.linear_operator()
@@ -188,8 +197,8 @@ class Decoder:
 
         report = None
         if on_iteration is not None:
-            def report(k, v):
-                on_iteration(k, as_image(v))
+            def report(k, v, residual):
+                on_iteration(k, as_image(v), residual)
 
         x, residuals, converged = conjugate_gradient(normal, b, self.tol, self.max_iter, report,
                                                      uncoupling(data, prior, shape))

@@ -176,7 +176,8 @@ def test_progress_and_stage_outputs_show_the_first_look(sample):
     assert events[0].stages == names
     by_stage = {event.stages[event.current]: event for event in events if event.iteration == 0}
     assert by_stage["fixation"].image.shape == (32, 32, 3)
-    assert by_stage["optics"].image.shape == (32, 32, 3) and by_stage["mosaic"].image is None
+    assert by_stage["optics"].image.shape == (32, 32, 3)
+    assert by_stage["mosaic"].image.shape == (32, 32, 3)
     outputs = stage_outputs(result)
     assert tuple(outputs) == names[:-1]
     np.testing.assert_array_equal(outputs["mosaic"], result.code.intermediates["mosaic"][0])

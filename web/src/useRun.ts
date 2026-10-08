@@ -1,7 +1,8 @@
 // Drives one run at a time: starts it, follows its events, cancels the previous one.
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  type ImageSource, type MosaicEvent, type RunSummary, type Settings, pngUrl, streamRun,
+  type ImageSource, type MosaicEvent, type RunSummary, type Settings, type StagePlot, pngUrl,
+  streamRun,
 } from "./api";
 
 export type RunState = {
@@ -9,18 +10,25 @@ export type RunState = {
   stages: string[];
   current: number;
   iteration: number;
+  fraction: number; // share of the decoding solve that is done
   original: string | null; // the picture at the size the eye sees it
-  frame: string | null; // the reconstruction so far, as an image URL
+  frame: string | null; // what the eye holds so far: a stage's picture, then the reconstruction
   stageImages: Record<string, string>;
+  stagePlots: Record<string, StagePlot>;
   mosaic: MosaicEvent | null;
   result: RunSummary | null;
   error: string | null;
 };
 
 const IDLE: RunState = {
-  status: "idle", stages: [], current: -1, iteration: 0, original: null, frame: null,
-  stageImages: {}, mosaic: null, result: null, error: null,
+  status: "idle", stages: [], current: -1, iteration: 0, fraction: 0, original: null, frame: null,
+  stageImages: {}, stagePlots: {}, mosaic: null, result: null, error: null,
 };
+
+const STAGE_DWELL_MS = 320; // long enough to see each stage's picture before the next
+
+const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+const prefersStill = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 export function useRun(settings: Settings, source: ImageSource | null, delayMs = 250): RunState {
   const [state, setState] = useState<RunState>(IDLE);
@@ -39,22 +47,34 @@ export function useRun(settings: Settings, source: ImageSource | null, delayMs =
       ...IDLE, status: "running", result: previous.result,
       original: samePicture ? previous.original : null,
     }));
+    // The stages of the eye are computed in an instant. Each one's picture is
+    // held on screen for a moment, so the run can be followed step by step.
+    let lastStage = 0;
+    const settle = async () => {
+      const wait = prefersStill() ? 0 : lastStage + STAGE_DWELL_MS - performance.now();
+      if (wait > 0) await sleep(wait);
+    };
     try {
       for await (const event of streamRun(runSettings, runSource, abort.signal)) {
+        if (event.type === "stage" || event.type === "frame" || event.type === "result") await settle();
         if (abort.signal.aborted) return;
         if (event.type === "original") {
           setState((s) => ({ ...s, original: pngUrl(event.image) }));
         } else if (event.type === "mosaic") {
           setState((s) => ({ ...s, mosaic: event }));
         } else if (event.type === "stage") {
+          lastStage = performance.now();
           const name = event.stages[event.current];
+          const picture = pngUrl(event.image);
           setState((s) => ({
-            ...s, stages: event.stages, current: event.current,
-            stageImages: event.image ? { ...s.stageImages, [name]: pngUrl(event.image) } : s.stageImages,
+            ...s, stages: event.stages, current: event.current, frame: picture,
+            stageImages: { ...s.stageImages, [name]: picture },
+            stagePlots: event.plot ? { ...s.stagePlots, [name]: event.plot } : s.stagePlots,
           }));
         } else if (event.type === "frame") {
           setState((s) => ({
-            ...s, current: s.stages.length - 1, iteration: event.iteration, frame: pngUrl(event.image),
+            ...s, current: s.stages.length - 1, iteration: event.iteration, fraction: event.progress,
+            frame: pngUrl(event.image),
           }));
         } else if (event.type === "result") {
           setState((s) => ({
