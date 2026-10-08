@@ -169,8 +169,14 @@ export function App() {
       {result && source && <Measurements result={result} settings={settings} source={source} />}
 
       <footer className="colophon">
-        Every stage is a published model of the eye, and the picture is rebuilt with linear algebra.
-        Nothing here is trained.
+        <p>
+          Every stage is a published model of the eye, and the picture is rebuilt with linear algebra.
+          Nothing here is trained.
+        </p>
+        <p className="colophon-credit">
+          © 2026 <a href="https://moksh-mandala.vercel.app/" target="_blank" rel="noreferrer">Mohak Sharma</a>.
+          Made with <span role="img" aria-label="love">❤️</span>
+        </p>
       </footer>
     </div>
   );

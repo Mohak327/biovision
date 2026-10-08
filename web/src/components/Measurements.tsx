@@ -5,6 +5,7 @@ import {
   type ImageSource, type RunSummary, type Settings, type SweepKind, type SweepRow,
   fetchReport, fetchSweep, pngUrl, streamCompare,
 } from "../api";
+import { capitalised } from "../presets";
 import { BarChart, LineChart } from "./Charts";
 
 const INK = "var(--ink)";
@@ -170,7 +171,7 @@ export function Measurements({ result, settings, source }: Props) {
           <thead><tr><th>Parameter</th><th>Value</th><th>Unit</th></tr></thead>
           <tbody>
             {result.parameters.map((row) => (
-              <tr key={row.parameter}><td>{row.parameter.replaceAll("_", " ")}</td><td>{row.value}</td><td>{row.unit}</td></tr>
+              <tr key={row.parameter}><td>{capitalised(row.parameter.replaceAll("_", " "))}</td><td>{row.value}</td><td>{row.unit}</td></tr>
             ))}
           </tbody>
         </table>

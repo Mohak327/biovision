@@ -342,7 +342,11 @@ th, td { text-align: left; padding: 0.3rem 1.25rem 0.3rem 0; border-bottom: 1px 
 td:nth-child(2) { font-variant-numeric: tabular-nums; word-break: break-word; max-width: 28rem; }
 .sources { font-size: var(--step--1); padding-left: 1.25rem; max-width: 72ch; }
 
-.colophon { margin-top: calc(var(--gap) * 2); padding-top: 1rem; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: var(--step--1); max-width: 68ch; }
+.colophon { margin-top: calc(var(--gap) * 2); padding-top: 1rem; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: var(--step--1); }
+.colophon p { margin: 0; max-width: 68ch; }
+.colophon .colophon-credit { margin-top: 1.25rem; max-width: none; text-align: center; }
+.colophon-credit a { color: inherit; text-underline-offset: 3px; }
+.colophon-credit a:hover { color: var(--ink); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
