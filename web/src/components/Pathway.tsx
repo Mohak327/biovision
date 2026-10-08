@@ -21,18 +21,29 @@ const PathwayScene = lazy(() => import("./PathwayScene"));
 export function Pathway({ species }: { species: string }) {
   const [linked] = useState(stopInAddress);
   const [selected, setSelected] = useState(linked ?? DEFAULT_STOP);
+  // Which descriptions are open. Any number can be; the selected stop starts open.
+  const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set([linked ?? DEFAULT_STOP]));
   const still = useReducedMotion();
   const route = routeFor(species);
   if (!route) return null;
   // A stop chosen for one species may not exist in the next one.
   const stop = route.stops.find((one) => one.id === selected)
     ?? route.stops.find((one) => one.id === DEFAULT_STOP)!;
+  // A click shows the stop in the model and opens its description, or shuts it if it was open.
+  const pick = (id: string) => {
+    setSelected(id);
+    setOpened((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  };
   return (
     <section className="pathway-section" aria-labelledby="pathway-title">
       <h2 id="pathway-title">The whole route, from the light to the brain</h2>
       <p>
         Follow the signal through the {species}'s own anatomy. Stops marked "in the model" are the
-        ones biovision computes. Drag to turn, scroll to zoom, or pick a stop.
+        ones biovision computes. Drag to turn, scroll to zoom, or pick a stop to read about it.
       </p>
       <div className="pathway">
         <div className="pathway-scene" role="img" aria-label={route.label}>
@@ -49,15 +60,16 @@ export function Pathway({ species }: { species: string }) {
         <div className="pathway-side">
           <ol className="pathway-stops">
             {route.stops.map((one) => {
-              const open = one.id === stop.id;
+              const open = opened.has(one.id);
               return (
                 <li key={one.id}>
                   <button
                     type="button"
                     className="stop"
                     aria-expanded={open}
+                    aria-current={one.id === stop.id ? "true" : undefined}
                     aria-controls={open ? `stop-detail-${one.id}` : undefined}
-                    onClick={() => setSelected(one.id)}
+                    onClick={() => pick(one.id)}
                   >
                     <span>{one.name}</span>
                     {one.stages.length > 0 && <span className="stop-mark">in the model</span>}
@@ -66,7 +78,7 @@ export function Pathway({ species }: { species: string }) {
                             strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </button>
-                  {/* The description slides open under its own stop, and shut when another is picked. */}
+                  {/* The description slides open under its own stop, and shut on a second click. */}
                   <AnimatePresence initial={false}>
                     {open && (
                       <motion.div
