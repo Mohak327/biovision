@@ -57,7 +57,7 @@ export function App() {
     <div className="page">
       <header className="masthead">
         <div className="masthead-top">
-          <h1 aria-label="Biovision">Bi<TitleEye />vision</h1>
+          <h1 aria-label="Biovision">Bi<TitleEye species={settings.species} />vision</h1>
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
         <p className="lede">

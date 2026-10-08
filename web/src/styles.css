@@ -69,18 +69,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .page { max-width: 1180px; margin: 0 auto; padding: clamp(1.25rem, 4vw, 3rem) clamp(1rem, 4vw, 2.5rem) 4rem; }
 
 .masthead { display: grid; gap: 0.5rem; }
-/* The eye in the title: as tall as the lowercase letters, and it blinks every few seconds. */
+/* The eye in the title, a little taller than the lowercase letters; drawn in TitleEye.tsx. */
 .title-eye {
-  width: 0.78em; height: 0.55em; margin: 0 0.03em; overflow: visible;
-  transform-origin: center; animation: blink 5.5s infinite;
+  display: inline-block; width: 0.68em; height: 0.68em; margin: 0 0.02em; vertical-align: -0.08em;
 }
-.title-eye-iris { fill: var(--accent); }
-.title-eye-pupil { fill: var(--well); } /* dark in both themes */
-@keyframes blink {
-  0%, 93%, 100% { transform: scaleY(1); }
-  96.5% { transform: scaleY(0.06); }
-}
-@media (prefers-reduced-motion: reduce) { .title-eye { animation: none; } }
 .masthead-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 /* A sun that turns into a moon; the drawing is in ThemeToggle.tsx. */
 .theme-toggle {

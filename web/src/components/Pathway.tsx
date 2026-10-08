@@ -21,22 +21,19 @@ const PathwayScene = lazy(() => import("./PathwayScene"));
 export function Pathway({ species }: { species: string }) {
   const [linked] = useState(stopInAddress);
   const [selected, setSelected] = useState(linked ?? DEFAULT_STOP);
-  // Which descriptions are open. Any number can be; the selected stop starts open.
-  const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set([linked ?? DEFAULT_STOP]));
+  // The one description that is open, if any; the selected stop's starts open.
+  const [opened, setOpened] = useState<string | null>(linked ?? DEFAULT_STOP);
   const still = useReducedMotion();
   const route = routeFor(species);
   if (!route) return null;
   // A stop chosen for one species may not exist in the next one.
   const stop = route.stops.find((one) => one.id === selected)
     ?? route.stops.find((one) => one.id === DEFAULT_STOP)!;
-  // A click shows the stop in the model and opens its description, or shuts it if it was open.
+  // A click shows the stop in the model and opens its description in place of any other,
+  // or shuts it if it was the one open.
   const pick = (id: string) => {
     setSelected(id);
-    setOpened((current) => {
-      const next = new Set(current);
-      if (!next.delete(id)) next.add(id);
-      return next;
-    });
+    setOpened((current) => (current === id ? null : id));
   };
   return (
     <section className="pathway-section" aria-labelledby="pathway-title">
@@ -64,7 +61,7 @@ export function Pathway({ species }: { species: string }) {
         <div className="pathway-side">
           <ol className="pathway-stops">
             {route.stops.map((one) => {
-              const open = opened.has(one.id);
+              const open = opened === one.id;
               return (
                 <li key={one.id}>
                   <button
