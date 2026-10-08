@@ -82,7 +82,8 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .theme-toggle:hover { border-color: var(--ink); transform: scale(1.06); }
 .theme-toggle:active { transform: scale(0.96); }
 .theme-toggle canvas { pointer-events: none; }
-.lede { font-size: var(--step-1); color: var(--ink-soft); max-width: 54ch; margin: 0; }
+.lede { font-size: var(--step-1); font-weight: 600; color: var(--ink); max-width: 54ch; margin: 0; }
+.lede-more { color: var(--ink-soft); max-width: 78ch; margin: 0; }
 
 .problem {
   background: var(--problem); border-left: 4px solid var(--rebuilt); padding: 0.75rem 1rem;

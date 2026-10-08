@@ -60,9 +60,10 @@ export function App() {
           <h1 aria-label="Biovision">Bi<TitleEye species={settings.species} />vision</h1>
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
-        <p className="lede">
-          A picture goes into an eye as light and leaves as spikes. This rebuilds the
-          picture from those spikes alone, so you can see what each eye keeps.
+        <p className="lede">Your eye turns the world into spikes. We turn the spikes back.</p>
+        <p className="lede-more">
+          See what a human, a mouse and a fruit fly actually keep of a picture, rebuilt with
+          maths alone.
         </p>
       </header>
 
