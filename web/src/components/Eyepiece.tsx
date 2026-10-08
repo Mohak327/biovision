@@ -42,6 +42,11 @@ export function Eyepiece({ original, reconstruction, speciesName, busy }: Props)
 
   return (
     <div className="eyepiece">
+      {/* Named above the picture, one over each half. */}
+      <div className="eyepiece-captions" aria-hidden="true">
+        <span>The world</span>
+        <span>What the {speciesName} keeps</span>
+      </div>
       <div
         className="eyepiece-well"
         ref={well}
@@ -79,10 +84,6 @@ export function Eyepiece({ original, reconstruction, speciesName, busy }: Props)
         >
           <span className="eyepiece-grip" aria-hidden="true" />
         </div>
-      </div>
-      <div className="eyepiece-captions" aria-hidden="true">
-        <span>the world</span>
-        <span>what the {speciesName} keeps</span>
       </div>
     </div>
   );

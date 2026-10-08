@@ -15,6 +15,16 @@ import { useRun } from "./useRun";
 
 const SERVER_HELP = "The Python server is not answering. Start it with: biovision serve";
 
+/** One measurement, or a ghost bar while the run has not produced it yet. */
+function Reading({ label, value }: { label: string; value: string | null | undefined }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value ?? <span className="ghost" role="img" aria-label="not ready yet" />}</dd>
+    </div>
+  );
+}
+
 export function App() {
   const [species, setSpecies] = useState<SpeciesInfo[]>([]);
   const [samples, setSamples] = useState<string[]>([]);
@@ -119,11 +129,11 @@ export function App() {
           {result && !result.converged && (
             <p className="measure-note">The solver stopped before fully settling; this is its best estimate.</p>
           )}
-          <dl className="readout" aria-label="Result">
-            <div><dt>Match to the original</dt><dd>{metrics ? `${metrics.psnr_db.toFixed(1)} dB` : "—"}</dd></div>
-            <div><dt>Structure kept</dt><dd>{metrics ? metrics.ssim.toFixed(2) : "—"}</dd></div>
-            <div><dt>Neurons</dt><dd>{metrics ? Math.round(metrics.neurons).toLocaleString() : "—"}</dd></div>
-            <div><dt>Receptors</dt><dd>{metrics ? Math.round(metrics.receptors).toLocaleString() : "—"}</dd></div>
+          <dl className="readout" aria-label="Result" aria-busy={!metrics}>
+            <Reading label="Match to the original" value={metrics && `${metrics.psnr_db.toFixed(1)} dB`} />
+            <Reading label="Structure kept" value={metrics && metrics.ssim.toFixed(2)} />
+            <Reading label="Neurons" value={metrics && Math.round(metrics.neurons).toLocaleString()} />
+            <Reading label="Receptors" value={metrics && Math.round(metrics.receptors).toLocaleString()} />
           </dl>
         </div>
         <Controls settings={settings} species={current} onChange={change} />

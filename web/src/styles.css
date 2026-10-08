@@ -150,9 +150,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .eyepiece-grip::before { left: 0.5rem; transform: translateY(-50%) rotate(-45deg); }
 .eyepiece-grip::after { right: 0.5rem; transform: translateY(-50%) rotate(135deg); }
 .eyepiece-captions {
-  display: flex; justify-content: space-between; width: min(100%, 34rem); color: var(--ink-soft);
-  font-size: var(--step--1);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; width: min(100%, 34rem);
+  font-family: var(--display); font-size: var(--step-1); font-weight: 640; line-height: 1.15;
 }
+.eyepiece-captions span:last-child { text-align: right; }
 
 .status { text-align: center; max-width: none; font-weight: 700; min-height: 1.5em; }
 .status[data-state="running"] { color: var(--accent); }
@@ -162,6 +163,13 @@ button { font: inherit; color: inherit; cursor: pointer; }
 @media (min-width: 560px) { .readout { grid-template-columns: repeat(4, 1fr); } }
 .readout div { border-top: 2px solid var(--ink); padding-top: 0.4rem; }
 .readout dt { font-size: var(--step--1); color: var(--ink-soft); }
+/* A soft moving bar where a number will appear. */
+.ghost {
+  display: inline-block; width: 5.5rem; max-width: 100%; height: 0.72em; border-radius: 6px; vertical-align: middle;
+  background: linear-gradient(90deg, var(--line) 25%, var(--slide-raised) 50%, var(--line) 75%);
+  background-size: 200% 100%; animation: ghost 1.5s linear infinite;
+}
+@keyframes ghost { to { background-position: -200% 0; } }
 .readout dd { margin: 0; font-family: var(--display); font-size: var(--step-2); font-weight: 680; font-variant-numeric: tabular-nums; }
 
 .controls { background: var(--slide-raised); border: 1px solid var(--line); border-radius: var(--radius); padding: 1.25rem; }
