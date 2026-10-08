@@ -1,6 +1,6 @@
 // The path a picture takes through the eye: one bar for the whole run, and
 // one station per stage showing that stage's picture as soon as it is reached.
-import { stageLabel, stageText } from "../presets";
+import { capitalised, stageLabel, stageText } from "../presets";
 import { runProgress } from "../progress";
 import type { RunState } from "../useRun";
 import { StageGraph } from "./StageGraph";
@@ -50,7 +50,7 @@ export function SignalPath({ run, expected }: Props) {
                   : <span className="ghost" aria-hidden="true" />}
               </div>
               <div className="station-name">
-                {stageLabel(name)}
+                {capitalised(stageLabel(name))}
                 {active && name === "decoding" && iteration > 0 && <span className="station-count">step {iteration}</span>}
               </div>
               <p className="station-text">{stageText(name)}</p>

@@ -5,7 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { useMemo } from "react";
 import * as THREE from "three";
 import { type MosaicEvent, decodeFloat32, decodeUint8 } from "../api";
-import { RECEPTOR_COLORS, RECEPTOR_NAMES } from "../presets";
+import { RECEPTOR_COLORS, RECEPTOR_NAMES, capitalised } from "../presets";
 
 const CURVE = 1.7; // radius of the bowl the receptors sit on; larger is flatter
 const REST = 0.45; // brightness of a receptor that did not respond
@@ -70,7 +70,7 @@ export function Retina({ mosaic, responses }: Props) {
         {mosaic.receptors.map((name) => (
           <li key={name}>
             <span className="swatch" style={{ background: RECEPTOR_COLORS[name] }} />
-            {RECEPTOR_NAMES[name] ?? name}
+            {capitalised(RECEPTOR_NAMES[name] ?? name)}
           </li>
         ))}
         <li className="retina-note">Brighter means a stronger response. Drag to turn it.</li>

@@ -11,7 +11,7 @@ import { SignalPath, runStatus } from "./components/SignalPath";
 import { SpeciesPicker } from "./components/SpeciesPicker";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { TitleEye } from "./components/TitleEye";
-import { DEFAULT_SETTINGS } from "./presets";
+import { DEFAULT_SETTINGS, capitalised } from "./presets";
 import { useTheme } from "./theme";
 import { useRun } from "./useRun";
 
@@ -85,7 +85,7 @@ export function App() {
                   onClick={() => setSource({ kind: "sample", name })}
                 >
                   <img src={sampleUrl(name)} alt="" />
-                  <span>{name}</span>
+                  <span>{capitalised(name)}</span>
                 </button>
               );
             })}
@@ -97,7 +97,7 @@ export function App() {
               onClick={() => fileInput.current?.click()}
             >
               <span className="picture-plus" aria-hidden="true">+</span>
-              <span>{source?.kind === "file" ? source.file.name : "your own"}</span>
+              <span>{source?.kind === "file" ? source.file.name : "Your own"}</span>
             </button>
             <input
               ref={fileInput}

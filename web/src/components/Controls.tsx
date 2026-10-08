@@ -3,6 +3,7 @@ import { useId } from "react";
 import type { Settings, SpeciesInfo } from "../api";
 import {
   DENSITY_PRESETS, FOV_PRESETS, NEURON_PRESETS, type Preset, SIZE_PRESETS, WINDOW_PRESETS,
+  capitalised,
 } from "../presets";
 
 type ChoiceProps = {
@@ -29,7 +30,7 @@ function Choice({ legend, presets, value, onChange, disabled, note }: ChoiceProp
               checked={preset.value === value}
               onChange={() => onChange(preset.value)}
             />
-            <span>{preset.label}</span>
+            <span>{capitalised(preset.label)}</span>
           </label>
         ))}
       </div>

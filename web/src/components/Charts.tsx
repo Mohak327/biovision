@@ -1,5 +1,6 @@
 // Hand-drawn SVG charts. d3 supplies the scales; everything else is plain SVG.
 import { type Point, extent, formatTick, linePath, makeScale, niceTicks } from "../chart";
+import { capitalised } from "../presets";
 
 const WIDTH = 360;
 const HEIGHT = 230;
@@ -68,7 +69,7 @@ export function LineChart({ title, series, xLabel, yLabel, xLog = false, yLog = 
       {series.length > 1 && (
         <ul className="chart-legend">
           {series.map((s) => (
-            <li key={s.name}><span className="swatch" style={{ background: s.color }} />{s.name}</li>
+            <li key={s.name}><span className="swatch" style={{ background: s.color }} />{capitalised(s.name)}</li>
           ))}
         </ul>
       )}

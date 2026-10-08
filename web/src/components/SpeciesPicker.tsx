@@ -1,7 +1,7 @@
 // Three cards, each drawn with that eye's own receptor pattern.
 import { motion } from "motion/react";
 import type { SpeciesInfo } from "../api";
-import { RECEPTOR_COLORS } from "../presets";
+import { RECEPTOR_COLORS, capitalised } from "../presets";
 
 const SIZE = 72;
 
@@ -73,7 +73,7 @@ export function SpeciesPicker({ species, selected, onSelect }: Props) {
               ))}
             </svg>
             <span className="species-text">
-              <span className="species-name">{item.name}</span>
+              <span className="species-name">{capitalised(item.name)}</span>
               <span className="species-fact">{FACTS[item.name] ?? item.receptors.join(", ")}</span>
             </span>
           </button>

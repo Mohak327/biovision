@@ -94,5 +94,8 @@ const STAGE_TEXT: Record<string, string> = {
   decoding: "The picture is rebuilt from the spike counts alone.",
 };
 
+/** A label standing on its own starts with a capital; the same name inside a sentence does not. */
+export const capitalised = (text: string): string => text.charAt(0).toUpperCase() + text.slice(1);
+
 export const stageLabel = (name: string): string => STAGE_LABELS[name] ?? name.replaceAll("_", " ");
 export const stageText = (name: string): string => STAGE_TEXT[name] ?? "";
