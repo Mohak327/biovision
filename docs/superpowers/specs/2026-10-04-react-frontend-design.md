@@ -54,7 +54,16 @@ One screen, top to bottom:
 4. **Signal path.** One station per stage with its output and a plain-language
    line. The mosaic station is a 3D retina (React Three Fiber) whose receptors
    are coloured by type and lit by their response.
-5. **Measurements.** Power spectrum, error per channel, spike histogram and
+5. **The whole route in 3D** (added 2026-10-08). The anatomy of the selected
+   species, from the eye to the brain, as a 3D model with the signal's route
+   drawn on it, an ordered list of stops beside it and a panel describing the
+   selected stop and whether biovision computes it. One model per species:
+   human from BodyParts3D, mouse from the Allen atlas with drawn eyes, fly
+   from the JFRC2 neuropil regions with drawn eyes and lamina. The view sits
+   in a dark well; tissue is in greys, the selected part in the accent, and
+   the receptor colours are not used. The list and descriptions carry the
+   content without the 3D view.
+6. **Measurements.** Power spectrum, error per channel, spike histogram and
    solver convergence as SVG charts; sweeps and species comparison on demand;
    report download.
 

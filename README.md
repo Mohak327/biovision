@@ -128,6 +128,8 @@ src/biovision/
   analysis.py  species comparison and sweeps
   server.py  the web app's HTTP server (FastAPI)
 web/         the React front end (Vite, TypeScript, three.js)
+  public/models/   the 3D anatomy, one model per species
+tools/       build_anatomy.py, which builds those models
 ```
 
 ## Add a species
@@ -179,6 +181,67 @@ def build(field: VisualField) -> Pipeline:
   shared between neighbouring cells is not modelled (measured: 0.2 dB or less).
   See phases 6 and 8 in the audit document.
 - Still images only; no motion pathways.
+
+## The 3D anatomy and its licences
+
+Under "From light to spikes and back" the web app shows the whole route of
+seeing in 3D, from the light to the brain, for the species that is selected.
+Each stop on the route is named and described beside the model, and marked
+"in the model" if biovision computes it. Add `?stop=chiasm` (or another stop's
+id) to the page's address to open the view at that stop.
+
+The three models are `web/public/models/human.glb`, `mouse.glb` and `fly.glb`.
+`tools/build_anatomy.py` builds them from open atlases, and writes where each
+stop sits to `web/src/data/anatomy.json`. The stops and their descriptions are
+in `web/src/pathway.ts`. Each model has its own licence, which is not the MIT
+licence of the code, and its credit must stay visible wherever it is shown
+(the page prints it under the view).
+
+- **Human** (`human.glb`): BodyParts3D 4.0, © The Database Center for Life
+  Science, licensed CC BY-SA 2.1 Japan; the model is under the same licence.
+  Every part is from the atlas: both eyes (sclera, cornea, iris, lens,
+  retina), optic nerves, optic chiasm, optic tracts, lateral geniculate
+  bodies, occipital lobes, and the rest of the brain as a shell. The atlas has
+  no optic radiation and does not mark V1 inside the occipital lobe, so the
+  radiation stop lights nothing and the V1 stop lights the whole lobe; the
+  page says so.
+- **Mouse** (`mouse.glb`): the Allen Mouse Brain Common Coordinate Framework,
+  version 3 (Wang Q, Ding S-L, Li Y, et al. 2020. Cell 181:936-953), © Allen
+  Institute for Brain Science. This is not a Creative Commons licence. The
+  Allen Institute's terms of use (alleninstitute.org/terms-of-use, as updated
+  5 May 2022, read on 8 October 2026) say: "You may use, copy, distribute,
+  publicly perform, publicly display, or create derivative works of the
+  Content ... for research or other noncommercial purposes", with citation,
+  and "You may not redistribute the Content or Improvements for commercial
+  purposes without our written permission." So `mouse.glb` may be used and
+  passed on for noncommercial purposes only. From the atlas: the whole brain,
+  optic chiasm, optic tract, brachium of the superior colliculus, dorsal
+  lateral geniculate, the sensory layers of the superior colliculus and the
+  primary visual area. The atlas is of a brain taken out of the skull, so
+  **the eyes and the nerves from them to the chiasm are drawn**: spheres of
+  the published size of a mouse eye, placed by eye.
+- **Fruit fly** (`fly.glb`): the neuropil regions of Ito K, Shinomiya K, Ito
+  M, et al. (2014. A systematic nomenclature for the insect brain. Neuron
+  81:755-765) painted on the JFRC2 template brain, as served by Virtual Fly
+  Brain (dataset "BrainName neuropils on adult brain JFRC2"), licensed CC BY
+  4.0. From the atlas: medulla, lobula, lobula plate, and the rest of the
+  brain as a shell (surfaces taken from the published volumes at half
+  resolution). Brain atlases leave out the compound eye, and the lamina is
+  torn away with it, so **the eyes and the laminas are drawn**: a schematic.
+  Each eye is a dome of 743 hexagonal facets five degrees apart on a sphere of
+  radius 183 micrometres (16 micrometre facets); its place against the medulla
+  is set by eye.
+
+Each model is scaled to the same size on screen; they are not to a common
+scale. To rebuild them (the built files are committed, so the web app does
+not need this):
+
+```
+pip install -e ".[anatomy]"
+python tools/build_anatomy.py human     # then mouse, then fly: one at a time
+```
+
+Downloads are kept in `tools/.cache`, which is not committed.
 
 ## Tests
 

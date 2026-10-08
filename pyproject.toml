@@ -22,6 +22,8 @@ dependencies = [
 [project.optional-dependencies]
 server = ["uvicorn[standard]>=0.30"]  # only to run the server locally
 dev = ["pytest>=8", "uvicorn[standard]>=0.30", "httpx>=0.27"]
+# only for tools/build_anatomy.py, which rebuilds the web app's 3D models
+anatomy = ["trimesh>=4", "remotezip>=0.12", "fast-simplification>=0.1"]
 
 [project.scripts]
 biovision = "biovision.cli:main"

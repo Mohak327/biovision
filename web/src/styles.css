@@ -192,7 +192,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 
 /* The signal path */
-.journey, .measure { margin-top: calc(var(--gap) * 2); }
+.journey, .measure, .pathway-section { margin-top: calc(var(--gap) * 2); }
 .path {
   list-style: none; margin: 1rem 0 0; padding: 0; display: grid; gap: 0.75rem;
   grid-template-columns: repeat(auto-fit, minmax(7.25rem, 1fr));
@@ -224,6 +224,34 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .retina-note { color: var(--ink-soft); }
 .swatch { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 50%; margin-right: 0.4rem; vertical-align: -1px; }
+
+/* The whole route in 3D */
+.pathway { display: grid; gap: var(--gap); margin-top: 1rem; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 900px) { .pathway { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); } }
+.pathway-scene {
+  position: relative; height: clamp(20rem, 46vw, 34rem); border-radius: var(--radius); background: var(--well);
+  overflow: hidden; cursor: grab;
+}
+.pathway-scene:active { cursor: grabbing; }
+.pathway-wait { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; max-width: none; color: #8fa1ad; }
+.pathway-stops { list-style: none; counter-reset: stop; margin: 0; padding: 0; display: grid; gap: 2px; }
+.pathway-stops li { counter-increment: stop; }
+.stop {
+  width: 100%; display: flex; align-items: baseline; gap: 0.7rem; text-align: left; padding: 0.4rem 0.7rem;
+  background: none; border: 0; border-radius: 7px;
+}
+.stop::before {
+  content: counter(stop); min-width: 1.3em; font-family: var(--display); font-weight: 680; color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.stop:hover { background: var(--slide-raised); }
+.stop[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
+.stop[aria-pressed="true"]::before, .stop[aria-pressed="true"] .stop-mark { color: inherit; }
+.stop-mark { margin-left: auto; font-size: var(--step--1); font-weight: 700; color: var(--accent); white-space: nowrap; }
+.pathway-detail { margin-top: 1.25rem; padding-top: 1rem; border-top: 2px solid var(--ink); min-height: 15rem; }
+.pathway-detail h3 { margin-top: 0; }
+.pathway-status { font-weight: 700; }
+.pathway-credit { margin-top: 1rem; font-size: var(--step--1); color: var(--ink-soft); max-width: 78ch; }
 
 /* Measurements */
 .chart-grid-layout { display: grid; gap: var(--gap); margin-top: 1rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }

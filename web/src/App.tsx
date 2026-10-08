@@ -5,6 +5,7 @@ import {
 import { Controls } from "./components/Controls";
 import { Eyepiece } from "./components/Eyepiece";
 import { Measurements } from "./components/Measurements";
+import { Pathway } from "./components/Pathway";
 import { Retina } from "./components/Retina";
 import { SignalPath, runStatus } from "./components/SignalPath";
 import { SpeciesPicker } from "./components/SpeciesPicker";
@@ -143,6 +144,8 @@ export function App() {
           </div>
         )}
       </section>
+
+      <Pathway species={settings.species} />
 
       {result && source && <Measurements result={result} settings={settings} source={source} />}
 

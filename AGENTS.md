@@ -35,6 +35,30 @@ options, progress reporting from `run()`, `biovision.server` and `web/`.
 The web app's design is recorded in
 `docs/superpowers/specs/2026-10-04-react-frontend-design.md`.
 
+## The 3D route of seeing (web app)
+
+Under the signal path the page shows the whole route of seeing in 3D for the
+selected species.
+
+- `tools/build_anatomy.py <species>` builds `web/public/models/<species>.glb`
+  and that species' entry in `web/src/data/anatomy.json` (stop positions, the
+  signal's lines, the camera). One script; each species is a function that
+  returns a `Model`, and `build()` scales, decimates and writes it. Its
+  dependencies are the optional extra `anatomy`, never core. Built files are
+  committed; `tools/.cache` is not.
+- `web/src/pathway.ts` is the one module of stops: for each species the
+  ordered stops (name, what happens, parts that light up, pipeline stages),
+  how each part is drawn, and the credit. `web/src/pathway.test.ts` checks it
+  against `anatomy.json`.
+- `web/src/components/Pathway.tsx` is the section (list of stops, detail
+  panel, credit); `PathwayScene.tsx` is the one scene for every species,
+  loaded lazily. The species is data: a new one needs a function in the build
+  script and an entry in `ROUTES`, and no change to either component.
+- A part that is a drawing and not a scan is listed in `drawn` in
+  `anatomy.json` and must be named as drawn in that species' credit (a test
+  checks it) and in the README. Licences are in the README; the mouse model
+  is noncommercial-only.
+
 ## Commands
 
 ```

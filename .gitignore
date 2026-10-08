@@ -13,3 +13,4 @@ results/
 .tmp_pytest/
 .tmp_pytest2/
 .vercel
+tools/.cache/
