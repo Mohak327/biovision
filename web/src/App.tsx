@@ -63,8 +63,9 @@ export function App() {
         </div>
         <p className="lede">Your eye turns the world into spikes. We turn the spikes back.</p>
         <p className="lede-more">
-          See what a human, a mouse and a fruit fly actually keep of a picture, rebuilt with
-          maths alone.
+          See what a human, a mouse and a fruit fly actually keep of a picture. Every stage is a
+          published model of the eye, and the picture is rebuilt with linear algebra. Nothing
+          here is trained.
         </p>
       </header>
 
@@ -169,10 +170,6 @@ export function App() {
       {result && source && <Measurements result={result} settings={settings} source={source} />}
 
       <footer className="colophon">
-        <p>
-          Every stage is a published model of the eye, and the picture is rebuilt with linear algebra.
-          Nothing here is trained.
-        </p>
         <p className="colophon-credit">
           © 2026 <a href="https://moksh-mandala.vercel.app/" target="_blank" rel="noreferrer">Mohak Sharma</a>.
           Made with <span role="img" aria-label="love">❤️</span>

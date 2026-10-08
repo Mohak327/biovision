@@ -83,7 +83,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .theme-toggle:active { transform: scale(0.96); }
 .theme-toggle canvas { pointer-events: none; }
 .lede { font-size: var(--step-1); font-weight: 600; color: var(--ink); max-width: 54ch; margin: 0; }
-.lede-more { color: var(--ink-soft); max-width: 78ch; margin: 0; }
+.lede-more { color: var(--ink-soft); max-width: 72ch; margin: 0; }
 
 .problem {
   background: var(--problem); border-left: 4px solid var(--rebuilt); padding: 0.75rem 1rem;
@@ -344,7 +344,7 @@ td:nth-child(2) { font-variant-numeric: tabular-nums; word-break: break-word; ma
 
 .colophon { margin-top: calc(var(--gap) * 2); padding-top: 1rem; border-top: 1px solid var(--line); color: var(--ink-soft); font-size: var(--step--1); }
 .colophon p { margin: 0; max-width: 68ch; }
-.colophon .colophon-credit { margin-top: 1.25rem; max-width: none; text-align: center; }
+.colophon .colophon-credit { max-width: none; text-align: center; }
 .colophon-credit a { color: inherit; text-underline-offset: 3px; }
 .colophon-credit a:hover { color: var(--ink); }
 
