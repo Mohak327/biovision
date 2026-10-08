@@ -247,6 +247,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 /* The bar is for a run in progress; it fades out when there is none, keeping its space. */
 .path-progress { transition: opacity 400ms ease-out; }
 .path-progress:not([data-state="running"]) { opacity: 0; }
+.journey-claim { margin: 0.5rem 0 0; max-width: 78ch; }
 .path-note { font-size: var(--step--1); color: var(--ink-soft); margin: 0.5rem 0 0; max-width: 78ch; }
 .station-name { font-weight: 700; margin-top: 0.4rem; }
 .station-count {

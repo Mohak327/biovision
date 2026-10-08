@@ -63,9 +63,8 @@ export function App() {
         </div>
         <p className="lede">Your eye turns the world into spikes. We turn the spikes back.</p>
         <p className="lede-more">
-          See what a human, a mouse and a fruit fly actually keep of a picture. Every stage is a
-          published model of the eye, and the picture is rebuilt with linear algebra. Nothing
-          here is trained.
+          See what a human, a mouse and a fruit fly actually keep of a picture, rebuilt with
+          maths alone.
         </p>
       </header>
 
@@ -151,6 +150,10 @@ export function App() {
 
       <section className="journey" aria-labelledby="journey-title">
         <h2 id="journey-title">From light to spikes and back</h2>
+        <p className="journey-claim">
+          Every stage is a published model of the eye, and the picture is rebuilt with linear algebra.
+          Nothing here is trained.
+        </p>
         <SignalPath run={run} expected={current?.stages ?? []} />
         {run.mosaic && (
           <div className="journey-retina">
