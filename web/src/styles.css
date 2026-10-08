@@ -293,7 +293,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .stop-detail p:first-child { margin-top: 0; }
 .pathway-status { font-weight: 700; }
-.pathway-credit { margin-top: 1rem; font-size: var(--step--1); color: var(--ink-soft); max-width: 78ch; }
+.pathway-credit { margin: 0.75rem 0 0; font-size: var(--step--1); color: var(--ink-soft); max-width: 78ch; }
 
 /* Measurements */
 .chart-grid-layout { display: grid; gap: var(--gap); margin-top: 1rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); }

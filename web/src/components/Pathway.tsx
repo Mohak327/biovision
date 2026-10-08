@@ -46,16 +46,20 @@ export function Pathway({ species }: { species: string }) {
         ones biovision computes. Drag to turn, scroll to zoom, or pick a stop to read about it.
       </p>
       <div className="pathway">
-        <div className="pathway-scene" role="img" aria-label={route.label}>
-          <Suspense fallback={<p className="pathway-wait">Loading the anatomy.</p>}>
-            <PathwayScene
-              key={species}
-              route={route}
-              stop={stop}
-              moving={!still}
-              flyOnOpen={route.stops.some((one) => one.id === linked)}
-            />
-          </Suspense>
+        {/* The credit shares the model's column, so the list beside it cannot push it down. */}
+        <div className="pathway-view">
+          <div className="pathway-scene" role="img" aria-label={route.label}>
+            <Suspense fallback={<p className="pathway-wait">Loading the anatomy.</p>}>
+              <PathwayScene
+                key={species}
+                route={route}
+                stop={stop}
+                moving={!still}
+                flyOnOpen={route.stops.some((one) => one.id === linked)}
+              />
+            </Suspense>
+          </div>
+          <p className="pathway-credit">{route.credit}</p>
         </div>
         <div className="pathway-side">
           <ol className="pathway-stops">
@@ -103,7 +107,6 @@ export function Pathway({ species }: { species: string }) {
           </ol>
         </div>
       </div>
-      <p className="pathway-credit">{route.credit}</p>
     </section>
   );
 }
