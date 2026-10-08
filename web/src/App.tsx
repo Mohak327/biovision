@@ -10,6 +10,7 @@ import { Retina } from "./components/Retina";
 import { SignalPath, runStatus } from "./components/SignalPath";
 import { SpeciesPicker } from "./components/SpeciesPicker";
 import { ThemeToggle } from "./components/ThemeToggle";
+import { TitleEye } from "./components/TitleEye";
 import { DEFAULT_SETTINGS } from "./presets";
 import { useTheme } from "./theme";
 import { useRun } from "./useRun";
@@ -56,7 +57,7 @@ export function App() {
     <div className="page">
       <header className="masthead">
         <div className="masthead-top">
-          <h1>biovision</h1>
+          <h1 aria-label="Biovision">Bi<TitleEye />vision</h1>
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
         <p className="lede">
