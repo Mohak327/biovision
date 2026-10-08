@@ -61,6 +61,10 @@ export function Pathway({ species }: { species: string }) {
                   >
                     <span>{one.name}</span>
                     {one.stages.length > 0 && <span className="stop-mark">in the model</span>}
+                    <svg className="stop-chevron" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true">
+                      <path d="M2.5 4.25 6 7.75l3.5-3.5" fill="none" stroke="currentColor" strokeWidth="1.6"
+                            strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                   </button>
                   {/* The description slides open under its own stop, and shut when another is picked. */}
                   <AnimatePresence initial={false}>
