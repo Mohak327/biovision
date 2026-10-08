@@ -57,7 +57,7 @@ export function App() {
     <div className="page">
       <header className="masthead">
         <div className="masthead-top">
-          <h1 aria-label="Biovision">Bi<TitleEye species={settings.species} />vision</h1>
+          <h1><TitleEye species={settings.species} />SpikeSight</h1>
           <ThemeToggle theme={theme} onToggle={toggleTheme} />
         </div>
         <p className="lede">Your eye turns the world into spikes. We turn the spikes back.</p>

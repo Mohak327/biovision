@@ -57,7 +57,7 @@ const GLASS: Look = { tone: "#f6f8f8", opacity: 0.45 };
 const HUMAN: Described[] = [
   {
     id: "light", name: "Light",
-    what: "Light from the scene arrives at the eye. Nothing about it is a nerve signal yet. biovision starts from a stored picture: three numbers for each pixel, not the full spectrum of real light.",
+    what: "Light from the scene arrives at the eye. Nothing about it is a nerve signal yet. SpikeSight starts from a stored picture: three numbers for each pixel, not the full spectrum of real light.",
   },
   {
     id: "optics", name: "Cornea and lens", parts: ["cornea", "lens", "iris"], stages: ["optics"],
@@ -69,15 +69,15 @@ const HUMAN: Described[] = [
   },
   {
     id: "bipolar", name: "Bipolar and horizontal cells", parts: ["retina"], stages: ["rods"],
-    what: "Inside the retina, bipolar cells carry each receptor's signal on, some answering to more light (ON) and some to less (OFF), while horizontal cells spread signals sideways to build the surround the next cells compare against. The rods' signals join the cones' pathway here. biovision has no cells of its own for this layer: it has a rods stage, used only when a light level is set, and the surround is part of the retina stage.",
+    what: "Inside the retina, bipolar cells carry each receptor's signal on, some answering to more light (ON) and some to less (OFF), while horizontal cells spread signals sideways to build the surround the next cells compare against. The rods' signals join the cones' pathway here. SpikeSight has no cells of its own for this layer: it has a rods stage, used only when a light level is set, and the surround is part of the retina stage.",
   },
   {
     id: "ganglion", name: "Retinal ganglion cells", parts: ["retina"], stages: ["center_surround"],
-    what: "Roughly a million ganglion cells are the eye's only output. Each compares a small centre with its surroundings. Together they recode the three cone signals as brightness, red against green and blue against yellow, in ON and OFF cells. This is biovision's retina stage.",
+    what: "Roughly a million ganglion cells are the eye's only output. Each compares a small centre with its surroundings. Together they recode the three cone signals as brightness, red against green and blue against yellow, in ON and OFF cells. This is SpikeSight's retina stage.",
   },
   {
     id: "nerve", name: "Optic nerve", parts: ["optic_nerve"],
-    what: "The ganglion cells' fibres leave the eye together as the optic nerve. Where they leave there are no receptors, which is the blind spot. biovision passes the retina's signals on unchanged.",
+    what: "The ganglion cells' fibres leave the eye together as the optic nerve. Where they leave there are no receptors, which is the blind spot. SpikeSight passes the retina's signals on unchanged.",
   },
   {
     id: "chiasm", name: "Optic chiasm", parts: ["chiasm"],
@@ -89,7 +89,7 @@ const HUMAN: Described[] = [
   },
   {
     id: "geniculate", name: "Lateral geniculate nucleus", parts: ["geniculate"],
-    what: "A relay in the thalamus, in six layers, each fed by one eye. Its cells keep the retina's centre and surround. The brightness, red-green and blue-yellow channels biovision uses were measured here, in the macaque. biovision has no separate stage for it.",
+    what: "A relay in the thalamus, in six layers, each fed by one eye. Its cells keep the retina's centre and surround. The brightness, red-green and blue-yellow channels SpikeSight uses were measured here, in the macaque. SpikeSight has no separate stage for it.",
   },
   {
     id: "radiation", name: "Optic radiation",
@@ -97,18 +97,18 @@ const HUMAN: Described[] = [
   },
   {
     id: "cortex", name: "Primary visual cortex (V1)", parts: ["visual_cortex"], stages: ["gabor", "rate", "spikes"],
-    what: "V1 lies at the very back of the brain, mostly on the inner face of the occipital lobe. Each of its simple cells answers to an edge at one place, of one angle and size. biovision's cortex stage is a bank of such cells, and the spikes it counts are theirs. The atlas gives the occipital lobe as one piece, so the whole lobe is lit; V1 is part of it.",
+    what: "V1 lies at the very back of the brain, mostly on the inner face of the occipital lobe. Each of its simple cells answers to an edge at one place, of one angle and size. SpikeSight's cortex stage is a bank of such cells, and the spikes it counts are theirs. The atlas gives the occipital lobe as one piece, so the whole lobe is lit; V1 is part of it.",
   },
   {
     id: "beyond", name: "Beyond V1",
-    what: "From V1 the signals go on to V2, V4 and dozens of other areas, broadly in two streams: one down into the temporal lobe for recognising things, one up into the parietal lobe for where things are and for acting on them. biovision stops at V1 and rebuilds the picture from its spikes.",
+    what: "From V1 the signals go on to V2, V4 and dozens of other areas, broadly in two streams: one down into the temporal lobe for recognising things, one up into the parietal lobe for where things are and for acting on them. SpikeSight stops at V1 and rebuilds the picture from its spikes.",
   },
 ];
 
 const MOUSE: Described[] = [
   {
     id: "light", name: "Light",
-    what: "Light from the scene arrives at the eye. A mouse sees ultraviolet, which an ordinary picture does not record, so biovision estimates it from the picture's blue.",
+    what: "Light from the scene arrives at the eye. A mouse sees ultraviolet, which an ordinary picture does not record, so SpikeSight estimates it from the picture's blue.",
   },
   {
     id: "optics", name: "Cornea and lens", parts: ["cornea", "lens"], stages: ["optics"],
@@ -116,15 +116,15 @@ const MOUSE: Described[] = [
   },
   {
     id: "receptors", name: "Rods and cones", parts: ["retina"], stages: ["color", "mosaic", "photons"],
-    what: "About 97% of a mouse's receptors are rods. Its cones have two pigments, one for ultraviolet and one for green, and almost no response to red. biovision models the cone pathway in daylight only and gives each cone one pigment; in the real retina many cones hold both. The photon-noise stage runs only when a light level is set.",
+    what: "About 97% of a mouse's receptors are rods. Its cones have two pigments, one for ultraviolet and one for green, and almost no response to red. SpikeSight models the cone pathway in daylight only and gives each cone one pigment; in the real retina many cones hold both. The photon-noise stage runs only when a light level is set.",
   },
   {
     id: "bipolar", name: "Bipolar and horizontal cells", parts: ["retina"],
-    what: "As in other mammals, bipolar cells carry the receptors' signals on in ON and OFF types and horizontal cells build the surround. biovision has no cells of its own for this layer; the surround is part of the retina stage.",
+    what: "As in other mammals, bipolar cells carry the receptors' signals on in ON and OFF types and horizontal cells build the surround. SpikeSight has no cells of its own for this layer; the surround is part of the retina stage.",
   },
   {
     id: "ganglion", name: "Retinal ganglion cells", parts: ["retina"], stages: ["center_surround"],
-    what: "The eye's output cells, of more than forty types in the mouse. Each compares a centre several degrees wide with its surroundings. biovision's retina stage has one kind for each cone pigment.",
+    what: "The eye's output cells, of more than forty types in the mouse. Each compares a centre several degrees wide with its surroundings. SpikeSight's retina stage has one kind for each cone pigment.",
   },
   {
     id: "nerve", name: "Optic nerve", parts: ["optic_nerve"],
@@ -140,26 +140,26 @@ const MOUSE: Described[] = [
   },
   {
     id: "colliculus", name: "Superior colliculus", parts: ["colliculus"],
-    what: "The main target of a mouse's eye: most of its ganglion cells send their fibre here, to the roof of the midbrain. It holds a map of the view and turns the eyes, head and body toward or away from what appears. biovision does not model it.",
+    what: "The main target of a mouse's eye: most of its ganglion cells send their fibre here, to the roof of the midbrain. It holds a map of the view and turns the eyes, head and body toward or away from what appears. SpikeSight does not model it.",
   },
   {
     id: "geniculate", name: "Lateral geniculate nucleus", parts: ["geniculate"],
-    what: "The relay to the cortex, in the thalamus. A smaller share of the retina's output takes this path than in a person. biovision has no separate stage for it.",
+    what: "The relay to the cortex, in the thalamus. A smaller share of the retina's output takes this path than in a person. SpikeSight has no separate stage for it.",
   },
   {
     id: "cortex", name: "Primary visual cortex (V1)", parts: ["visual_cortex"], stages: ["gabor", "rate", "spikes"],
-    what: "A patch a few millimetres across at the back of the cortex. Its cells answer to edges at one angle, as a person's do, but prefer coarse patterns of about 0.04 cycles per degree. biovision's cortex stage is a bank of such cells, and the spikes it counts are theirs.",
+    what: "A patch a few millimetres across at the back of the cortex. Its cells answer to edges at one angle, as a person's do, but prefer coarse patterns of about 0.04 cycles per degree. SpikeSight's cortex stage is a bank of such cells, and the spikes it counts are theirs.",
   },
   {
     id: "beyond", name: "Beyond V1",
-    what: "Around V1 lie about ten smaller visual areas, and the colliculus has its own routes to the rest of the brain. biovision stops at V1 and rebuilds the picture from its spikes.",
+    what: "Around V1 lie about ten smaller visual areas, and the colliculus has its own routes to the rest of the brain. SpikeSight stops at V1 and rebuilds the picture from its spikes.",
   },
 ];
 
 const FLY: Described[] = [
   {
     id: "light", name: "Light",
-    what: "Light from the scene arrives at the eye. A fly sees ultraviolet, which an ordinary picture does not record, so biovision estimates it from the picture's blue.",
+    what: "Light from the scene arrives at the eye. A fly sees ultraviolet, which an ordinary picture does not record, so SpikeSight estimates it from the picture's blue.",
   },
   {
     id: "optics", name: "Facets and lenses", parts: ["eye"], stages: ["optics"],
@@ -167,23 +167,23 @@ const FLY: Described[] = [
   },
   {
     id: "receptors", name: "Photoreceptors R1 to R8", parts: ["eye"], stages: ["color", "mosaic", "photons"],
-    what: "Under each lens sit eight receptor cells. R1 to R6 respond to a broad band of light and serve contrast and motion; R7 and R8, stacked in the middle, come in ultraviolet, blue and green kinds and serve colour. Flies see almost no red. biovision gives every facet one ultraviolet, one blue and one green receptor. The photon-noise stage runs only when a light level is set.",
+    what: "Under each lens sit eight receptor cells. R1 to R6 respond to a broad band of light and serve contrast and motion; R7 and R8, stacked in the middle, come in ultraviolet, blue and green kinds and serve colour. Flies see almost no red. SpikeSight gives every facet one ultraviolet, one blue and one green receptor. The photon-noise stage runs only when a light level is set.",
   },
   {
     id: "lamina", name: "Lamina", parts: ["lamina"], stages: ["center_surround", "rate", "spikes"],
-    what: "The first layer of the brain, just under the eye, with one unit for each point in the view. Its cells subtract what the neighbouring points see, which sharpens the picture. This is biovision's retina stage for the fly, and the model's output is taken here. Real lamina cells signal with smooth changes of voltage, not spikes; the model counts spikes all the same. The lamina is torn away when a brain is prepared for an atlas, so it is drawn here.",
+    what: "The first layer of the brain, just under the eye, with one unit for each point in the view. Its cells subtract what the neighbouring points see, which sharpens the picture. This is SpikeSight's retina stage for the fly, and the model's output is taken here. Real lamina cells signal with smooth changes of voltage, not spikes; the model counts spikes all the same. The lamina is torn away when a brain is prepared for an atlas, so it is drawn here.",
   },
   {
     id: "medulla", name: "Medulla", parts: ["medulla"],
-    what: "The largest part of the optic lobe, with one column for each facet. R7 and R8 end here, brightening and darkening are split into separate channels, and the comparison of colours and the detection of motion begin. biovision does not model it.",
+    what: "The largest part of the optic lobe, with one column for each facet. R7 and R8 end here, brightening and darkening are split into separate channels, and the comparison of colours and the detection of motion begin. SpikeSight does not model it.",
   },
   {
     id: "lobula", name: "Lobula and lobula plate", parts: ["lobula", "lobula_plate"],
-    what: "The lobula plate works out which way things are moving, in four layers, one for each direction; the lobula picks out features such as a small moving object or something looming. biovision works on still pictures and has no motion pathway.",
+    what: "The lobula plate works out which way things are moving, in four layers, one for each direction; the lobula picks out features such as a small moving object or something looming. SpikeSight works on still pictures and has no motion pathway.",
   },
   {
     id: "brain", name: "Central brain", parts: ["brain"],
-    what: "The optic lobe's outputs end in small knots of tissue at the side of the central brain, and from there reach the circuits that steer walking and flight. biovision does not model any of it.",
+    what: "The optic lobe's outputs end in small knots of tissue at the side of the central brain, and from there reach the circuits that steer walking and flight. SpikeSight does not model any of it.",
   },
 ];
 

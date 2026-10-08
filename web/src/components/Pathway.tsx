@@ -40,7 +40,7 @@ export function Pathway({ species }: { species: string }) {
       <h2 id="pathway-title">The whole route, from the light to the brain</h2>
       <p>
         Follow the signal through the {species}'s own anatomy. Stops marked "in the model" are the
-        ones biovision computes. Drag to turn, scroll to zoom, or pick a stop to read about it.
+        ones SpikeSight computes. Drag to turn, scroll to zoom, or pick a stop to read about it.
       </p>
       <div className="pathway">
         {/* The credit shares the model's column, so the list beside it cannot push it down. */}

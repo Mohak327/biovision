@@ -1,4 +1,4 @@
-// The "o" of the page title: the chosen species' eye in 3D, in translucent mauve.
+// The mark before the page's name: the chosen species' eye in 3D, in translucent mauve.
 // The three eyes sit on a reel that rolls vertically to the next one when the
 // species changes, and the eye in front follows the pointer.
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
